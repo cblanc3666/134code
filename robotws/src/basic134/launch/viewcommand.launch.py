@@ -93,6 +93,12 @@ def generate_launch_description():
         executable = 'demo134',
         output     = 'screen')
 
+    node_point = Node(
+        name       = 'point', 
+        package    = 'basic134',
+        executable = 'receivepoint',
+        output     = 'screen')
+
     # Configure a node for the GUI to command the robot.
     node_gui = Node(
         name       = 'gui', 
@@ -101,6 +107,12 @@ def generate_launch_description():
         output     = 'screen',
         remappings = [('/joint_states', '/joint_commands')],
         on_exit    = Shutdown())
+
+    node_table = Node(
+        name       = 'table', 
+        package    = 'basic134',
+        executable = 'table',
+        output     = 'screen')
 
 
     ######################################################################
@@ -113,5 +125,8 @@ def generate_launch_description():
         node_robot_state_publisher_COMMAND,
         node_rviz,
         node_hebi,
+
         node_demo,
+        # node_table,
+        # node_point,
     ])

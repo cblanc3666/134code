@@ -1,12 +1,13 @@
 package.xml
 setup.cfg
 setup.py
-basic134/KinematicChainSol.py
+basic134/KinematicChain.py
 basic134/Segments.py
 basic134/TransformHelpers.py
 basic134/__init__.py
 basic134/demo134.py
 basic134/receivepoint.py
+basic134/table.py
 basic134.egg-info/PKG-INFO
 basic134.egg-info/SOURCES.txt
 basic134.egg-info/dependency_links.txt

@@ -5,11 +5,14 @@
 #   Demonstration node to interact with the HEBIs.
 #
 import numpy as np
-from basic134.Segments  import GotoCubic
 import rclpy
 
-from rclpy.node         import Node
-from sensor_msgs.msg    import JointState
+from rclpy.node               import Node
+from sensor_msgs.msg          import JointState
+from geometry_msgs.msg        import Point
+
+from basic134.Segments        import GotoCubic
+from basic134.KinematicChain  import KinematicChain
 
 
 #
@@ -19,11 +22,11 @@ RATE = 100.0            # Hertz
 
 # Target position for each spline segment
 END_POS = [[0.0, 0.0, 0.0],
-           [0.0, 0.0, -np.pi/2],
-           [0.38, -0.91, -1.86]]
+           [0.0, 0.0, -np.pi/2]]
 
 # Duration for each spline segment
-DURATIONS = [4.0, 3.0, 5.0, 4.0]
+# DURATIONS[3] = Hold time at commanded point
+DURATIONS = [5.0, 3.0, 6.0, 3.0, 6.0]
 
 #
 #   DEMO Node Class
@@ -32,6 +35,7 @@ class DemoNode(Node):
     position = None
     start_pos = None
     start_time = 0
+    msg_time = -sum(DURATIONS)
     segments = [None, None, None, None]
 
     # Initialization.
@@ -63,9 +67,16 @@ class DemoNode(Node):
         self.get_logger().info("Sending commands with dt of %f seconds (%fHz)" %
                                (self.timer.timer_period_ns * 1e-9, rate))
 
-        #Initialize segements for pointing at tabe and returning
-        self.segments[2] = GotoCubic(np.array(END_POS[1]), np.array(END_POS[2]), DURATIONS[2])
-        self.segments[3] = GotoCubic(np.array(END_POS[2]), np.array(END_POS[1]), DURATIONS[3])
+        self.fbksub = self.create_subscription(
+            Point, '/point', self.recvpoint, 10)
+
+        # Report.
+        self.get_logger().info("Running %s" % name)
+        self.chain = KinematicChain('world', 'tip', self.jointnames())
+
+    def jointnames(self):
+        # Return a list of joint names FOR THE EXPECTED URDF!
+        return ['base', 'shoulder', 'elbow']
 
     # Shutdown
     def shutdown(self):
@@ -95,6 +106,28 @@ class DemoNode(Node):
     def recvfbk(self, fbkmsg):
         # Just print the position (for now).
         self.position = np.array(list(fbkmsg.position))
+
+    def recvpoint(self, pointmsg):
+        # Extract the data.
+        x = pointmsg.x
+        y = pointmsg.y
+        z = pointmsg.z
+
+        time = self.get_clock().now().nanoseconds * 1e-9 - self.start_time
+
+        if (time - self.msg_time < sum(DURATIONS[2:5])):
+            self.get_logger().info("Already commanded!")
+            return
+        
+        self.msg_time = self.get_clock().now().nanoseconds * 1e-9 - self.start_time
+        
+        # Go to command position JOINT SPACE
+        self.segments[2] = GotoCubic(np.array(END_POS[1]), np.array([x, y, z]), DURATIONS[2])
+        # Return back
+        self.segments[3] = GotoCubic(np.array([x, y, z]), np.array(END_POS[1]), DURATIONS[4])
+
+        # Report.
+        self.get_logger().info("Going to point %r, %r, %r" % (x,y,z))
 
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):
@@ -128,7 +161,7 @@ class DemoNode(Node):
             self.cmdmsg.velocity = list(v)
 
             # Sets up next spline since base and elbow joints start at arbitrary positions
-            self.segments[1] = GotoCubic(np.array(self.position), np.array(END_POS[1]), DURATIONS[1])
+            self.segments[1] = GotoCubic(np.array(p), np.array(END_POS[1]), DURATIONS[1])
             
             # Publish commands, makes robot move
             self.cmdpub.publish(self.cmdmsg)
@@ -139,21 +172,28 @@ class DemoNode(Node):
             self.cmdmsg.velocity = list(v)
 
             self.cmdpub.publish(self.cmdmsg)
+            self.msg_time = time - sum(DURATIONS)
         else:
-            # Cyclic timer for pointing motion
-            # time_table = 0 at waiting position
-            # time_table = DURATIONS[2] when the tip hits point
-            time_table = (time - sum(DURATIONS[0:2])) % sum(DURATIONS[2:4])
-            if time_table < DURATIONS[2]:
-                (p, v) = self.segments[2].evaluate(time_table)
+            if time - self.msg_time < DURATIONS[2]:
+                (p, v) = self.segments[2].evaluate(time - self.msg_time)
+            elif time - self.msg_time < sum(DURATIONS[2:4]):
+                (p, v) = self.segments[2].evaluate(DURATIONS[2])
+                v = [0.0, 0.0, 0.0]
+            elif time - self.msg_time < sum(DURATIONS[2:5]):
+                (p, v) = self.segments[3].evaluate(time - self.msg_time - sum(DURATIONS[2:4]))
             else:
-                (p, v) = self.segments[3].evaluate(time_table - DURATIONS[2])
+                p = END_POS[1]
+                v = [0.0, 0.0, 0.0]
+
             self.cmdmsg.position = list(p)
             self.cmdmsg.velocity = list(v)
             self.cmdpub.publish(self.cmdmsg)
 
+        # print(np.reshape(self.position, (-1, 1)), "\n")
+        (ptip, Rtip, Jv, Jw) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
+        print(ptip.flatten())
         # print(self.cmdmsg.position)
-
+        # print(time - self.msg_time)
 
 #
 #   Main Code

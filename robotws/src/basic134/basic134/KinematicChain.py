@@ -29,7 +29,7 @@ from std_msgs.msg               import String
 from urdf_parser_py.urdf        import Robot
 
 # Grab the utilities
-from hw5code.TransformHelpers   import *
+from basic134.TransformHelpers   import *
 
 
 #
@@ -121,9 +121,10 @@ class KinematicChain():
         raise Exception(string)
 
     # Initialization.
-    def __init__(self, node, baseframe, tipframe, expectedjointnames):
+    # def __init__(self, node, baseframe, tipframe, expectedjointnames):
+    def __init__(self, baseframe, tipframe, expectedjointnames):
         # Store the node (for the helper functions).
-        self.node = node
+        self.node = Node("temp_node")
 
         # Prepare the information.
         self.steps = []

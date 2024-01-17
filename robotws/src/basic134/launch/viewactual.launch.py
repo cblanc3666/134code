@@ -113,7 +113,7 @@ def generate_launch_description():
         # Watch the actual robot without commands - move by hand.
         node_robot_state_publisher_ACTUAL,
         node_rviz,
-        # node_hebi,
-        node_hebi_SLOW,
-        node_gui,
+        node_hebi,
+        # node_hebi_SLOW,
+        # node_gui,
     ])
