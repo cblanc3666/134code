@@ -1,0 +1,22 @@
+[2.055s] Invoking command in '/home/robot/134code/robotws/build/basic134': PYTHONPATH=/home/robot/134code/robotws/build/basic134/prefix_override:/home/robot/134code/robotws/install/basic134/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/robotws/build/basic134/build --no-deps install_data
+[2.418s] running develop
+[2.419s] /usr/lib/python3/dist-packages/setuptools/command/easy_install.py:158: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.
+[2.420s]   warnings.warn(
+[2.422s] /usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.
+[2.423s]   warnings.warn(
+[2.786s] running egg_info
+[2.788s] writing basic134.egg-info/PKG-INFO
+[2.789s] writing dependency_links to basic134.egg-info/dependency_links.txt
+[2.790s] writing entry points to basic134.egg-info/entry_points.txt
+[2.791s] writing requirements to basic134.egg-info/requires.txt
+[2.792s] writing top-level names to basic134.egg-info/top_level.txt
+[2.795s] reading manifest file 'basic134.egg-info/SOURCES.txt'
+[2.797s] writing manifest file 'basic134.egg-info/SOURCES.txt'
+[2.799s] running build_ext
+[2.800s] Creating /home/robot/134code/robotws/install/basic134/lib/python3.10/site-packages/basic134.egg-link (link to .)
+[2.802s] Installing demo134 script to /home/robot/134code/robotws/install/basic134/lib/basic134
+[2.804s] Installing receivepoint script to /home/robot/134code/robotws/install/basic134/lib/basic134
+[2.805s] 
+[2.806s] Installed /home/robot/134code/robotws/build/basic134
+[2.807s] running install_data
+[2.851s] Invoked command in '/home/robot/134code/robotws/build/basic134' returned '0': PYTHONPATH=/home/robot/134code/robotws/build/basic134/prefix_override:/home/robot/134code/robotws/install/basic134/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/robotws/build/basic134/build --no-deps install_data

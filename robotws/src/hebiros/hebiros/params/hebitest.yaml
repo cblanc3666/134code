@@ -13,6 +13,6 @@ hebinode:
   ros__parameters:
     testmode: 'off'
     family: 'robotlab'
-    motors: ['9.6', '9.1', '9.2']
-    joints: ['one', 'two', 'three']
+    motors: ['7.5', '7.4', '7.3']
+    joints: ['base', 'shoulder', 'elbow']
     rate:   100.0

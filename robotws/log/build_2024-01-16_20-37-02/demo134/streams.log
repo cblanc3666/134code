@@ -1,0 +1,21 @@
+[1.908s] Invoking command in '/home/robot/134code/robotws/build/demo134': PYTHONPATH=/home/robot/134code/robotws/build/demo134/prefix_override:/home/robot/134code/robotws/install/demo134/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/robotws/build/demo134/build --no-deps install_data
+[2.205s] running develop
+[2.205s] /usr/lib/python3/dist-packages/setuptools/command/easy_install.py:158: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.
+[2.205s]   warnings.warn(
+[2.206s] /usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.
+[2.207s]   warnings.warn(
+[2.420s] running egg_info
+[2.420s] writing demo134.egg-info/PKG-INFO
+[2.420s] writing dependency_links to demo134.egg-info/dependency_links.txt
+[2.421s] writing entry points to demo134.egg-info/entry_points.txt
+[2.421s] writing requirements to demo134.egg-info/requires.txt
+[2.421s] writing top-level names to demo134.egg-info/top_level.txt
+[2.423s] reading manifest file 'demo134.egg-info/SOURCES.txt'
+[2.424s] writing manifest file 'demo134.egg-info/SOURCES.txt'
+[2.425s] running build_ext
+[2.425s] Creating /home/robot/134code/robotws/install/demo134/lib/python3.10/site-packages/demo134.egg-link (link to .)
+[2.426s] Installing demo134 script to /home/robot/134code/robotws/install/demo134/lib/demo134
+[2.426s] 
+[2.427s] Installed /home/robot/134code/robotws/build/demo134
+[2.427s] running install_data
+[2.463s] Invoked command in '/home/robot/134code/robotws/build/demo134' returned '0': PYTHONPATH=/home/robot/134code/robotws/build/demo134/prefix_override:/home/robot/134code/robotws/install/demo134/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/robotws/build/demo134/build --no-deps install_data

@@ -1,0 +1,23 @@
+[2.143s] Invoking command in '/home/robot/134code/robotws/build/basic134': PYTHONPATH=/home/robot/134code/robotws/build/basic134/prefix_override:/home/robot/134code/robotws/install/basic134/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/robotws/build/basic134/build --no-deps install_data
+[2.556s] running develop
+[2.557s] /usr/lib/python3/dist-packages/setuptools/command/easy_install.py:158: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.
+[2.557s]   warnings.warn(
+[2.559s] /usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.
+[2.559s]   warnings.warn(
+[2.933s] running egg_info
+[2.933s] writing basic134.egg-info/PKG-INFO
+[2.934s] writing dependency_links to basic134.egg-info/dependency_links.txt
+[2.934s] writing entry points to basic134.egg-info/entry_points.txt
+[2.934s] writing requirements to basic134.egg-info/requires.txt
+[2.934s] writing top-level names to basic134.egg-info/top_level.txt
+[2.937s] reading manifest file 'basic134.egg-info/SOURCES.txt'
+[2.938s] writing manifest file 'basic134.egg-info/SOURCES.txt'
+[2.940s] running build_ext
+[2.940s] Creating /home/robot/134code/robotws/install/basic134/lib/python3.10/site-packages/basic134.egg-link (link to .)
+[2.941s] Installing demo134 script to /home/robot/134code/robotws/install/basic134/lib/basic134
+[2.941s] Installing receivepoint script to /home/robot/134code/robotws/install/basic134/lib/basic134
+[2.942s] 
+[2.942s] Installed /home/robot/134code/robotws/build/basic134
+[2.942s] running install_data
+[2.942s] copying launch/viewactual.launch.py -> /home/robot/134code/robotws/install/basic134/share/basic134/launch
+[3.055s] Invoked command in '/home/robot/134code/robotws/build/basic134' returned '0': PYTHONPATH=/home/robot/134code/robotws/build/basic134/prefix_override:/home/robot/134code/robotws/install/basic134/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/robotws/build/basic134/build --no-deps install_data

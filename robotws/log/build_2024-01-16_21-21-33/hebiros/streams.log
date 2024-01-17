@@ -1,0 +1,25 @@
+[1.929s] Invoking command in '/home/robot/134code/robotws/build/hebiros': PYTHONPATH=/home/robot/134code/robotws/build/hebiros/prefix_override:/home/robot/134code/robotws/install/hebiros/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/robotws/build/hebiros/build --no-deps install_data
+[2.433s] running develop
+[2.434s] /usr/lib/python3/dist-packages/setuptools/command/easy_install.py:158: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.
+[2.434s]   warnings.warn(
+[2.435s] /usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.
+[2.435s]   warnings.warn(
+[2.797s] running egg_info
+[2.797s] writing hebiros.egg-info/PKG-INFO
+[2.798s] writing dependency_links to hebiros.egg-info/dependency_links.txt
+[2.798s] writing entry points to hebiros.egg-info/entry_points.txt
+[2.798s] writing requirements to hebiros.egg-info/requires.txt
+[2.799s] writing top-level names to hebiros.egg-info/top_level.txt
+[2.800s] reading manifest file 'hebiros.egg-info/SOURCES.txt'
+[2.801s] writing manifest file 'hebiros.egg-info/SOURCES.txt'
+[2.803s] running build_ext
+[2.804s] Creating /home/robot/134code/robotws/install/hebiros/lib/python3.10/site-packages/hebiros.egg-link (link to .)
+[2.805s] Installing hebiforce script to /home/robot/134code/robotws/install/hebiros/lib/hebiros
+[2.805s] Installing hebinode script to /home/robot/134code/robotws/install/hebiros/lib/hebiros
+[2.805s] Installing hebiscan script to /home/robot/134code/robotws/install/hebiros/lib/hebiros
+[2.805s] Installing hebitune script to /home/robot/134code/robotws/install/hebiros/lib/hebiros
+[2.805s] Installing testsend script to /home/robot/134code/robotws/install/hebiros/lib/hebiros
+[2.806s] 
+[2.806s] Installed /home/robot/134code/robotws/build/hebiros
+[2.814s] running install_data
+[2.884s] Invoked command in '/home/robot/134code/robotws/build/hebiros' returned '0': PYTHONPATH=/home/robot/134code/robotws/build/hebiros/prefix_override:/home/robot/134code/robotws/install/hebiros/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/robotws/build/hebiros/build --no-deps install_data
