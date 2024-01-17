@@ -1,0 +1,96 @@
+[0.000000] (-) TimerEvent: {}
+[0.000284] (demo134) JobQueued: {'identifier': 'demo134', 'dependencies': OrderedDict()}
+[0.000317] (hebiros) JobQueued: {'identifier': 'hebiros', 'dependencies': OrderedDict()}
+[0.000336] (demo134) JobStarted: {'identifier': 'demo134'}
+[0.099404] (-) TimerEvent: {}
+[0.104462] (hebiros) JobStarted: {'identifier': 'hebiros'}
+[0.199477] (-) TimerEvent: {}
+[0.299997] (-) TimerEvent: {}
+[0.400288] (-) TimerEvent: {}
+[0.500519] (-) TimerEvent: {}
+[0.600789] (-) TimerEvent: {}
+[0.701061] (-) TimerEvent: {}
+[0.801327] (-) TimerEvent: {}
+[0.901760] (-) TimerEvent: {}
+[1.002049] (-) TimerEvent: {}
+[1.102328] (-) TimerEvent: {}
+[1.202689] (-) TimerEvent: {}
+[1.302980] (-) TimerEvent: {}
+[1.403322] (-) TimerEvent: {}
+[1.503706] (-) TimerEvent: {}
+[1.547522] (demo134) Command: {'cmd': ['/usr/bin/python3', 'setup.py', 'develop', '--editable', '--build-directory', '/home/robot/robotws/build/demo134/build', '--no-deps', 'install_data'], 'cwd': '/home/robot/robotws/build/demo134', 'env': {'VNCDESKTOP': 'HAL:1 (robot)', 'LESSOPEN': '| /usr/bin/lesspipe %s', 'USER': 'robot', 'SSH_CLIENT': 'fe80::4a76:1429:629d:8fc%wlp58s0 53652 22', 'SSH_AGENT_PID': '1717', 'XDG_SESSION_TYPE': 'x11', 'SHLVL': '1', 'LD_LIBRARY_PATH': '/usr/lib/x86_64-linux-gnu/gazebo-11/plugins:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib', 'MOTD_SHOWN': 'pam', 'HOME': '/home/robot', 'OLDPWD': '/home/robot', 'SSH_TTY': '/dev/pts/0', 'ROS_PYTHON_VERSION': '3', 'GTK_MODULES': 'gail:atk-bridge', 'SYSTEMD_EXEC_PID': '1874', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1001/bus', 'COLORTERM': 'truecolor', '_colcon_cd_root': '/opt/ros/humble/', 'COLCON_PREFIX_PATH': '/home/robot/robotws/install', 'ROS_DISTRO': 'humble', 'GTK_IM_MODULE': 'ibus', 'LOGNAME': 'robot', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'XDG_SESSION_CLASS': 'user', 'TERM': 'xterm-256color', 'GNOME_DESKTOP_SESSION_ID': 'this-is-deprecated', 'ROS_LOCALHOST_ONLY': '1', 'PATH': '/home/robot/bin:/home/robot/bin:/home/robot/bin:/opt/ros/humble/bin:/home/robot/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin', 'SESSION_MANAGER': 'local/HAL:@/tmp/.ICE-unix/1833,unix/HAL:/tmp/.ICE-unix/1833', 'XDG_MENU_PREFIX': 'gnome-', 'GNOME_TERMINAL_SCREEN': '/org/gnome/Terminal/screen/e543540c_504c_4a81_a38f_0e2541fcdbde', 'XDG_RUNTIME_DIR': '/run/user/1001', 'DISPLAY': ':1', 'LANG': 'en_US.UTF-8', 'XDG_CURRENT_DESKTOP': 'GNOME', 'XMODIFIERS': '@im=ibus', 'LS_COLORS': 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:', 'GNOME_TERMINAL_SERVICE': ':1.106', 'SSH_AUTH_SOCK': '/run/user/1001/keyring/ssh', 'ROS_DOMAIN_ID': '1', 'AMENT_PREFIX_PATH': '/opt/ros/humble', 'SHELL': '/bin/bash', 'QT_ACCESSIBILITY': '1', 'LESSCLOSE': '/usr/bin/lesspipe %s %s', 'GPG_AGENT_INFO': '/run/user/1001/gnupg/S.gpg-agent:0:1', 'QT_IM_MODULE': 'ibus', 'PWD': '/home/robot/robotws/build/demo134', 'SSH_CONNECTION': 'fe80::4a76:1429:629d:8fc%wlp58s0 53652 fe80::2bc3:b411:bb3c:8b68%wlp58s0 22', 'CLUTTER_IM_MODULE': 'ibus', 'XDG_DATA_DIRS': '/usr/share/gnome:/usr/local/share:/usr/share:/var/lib/snapd/desktop', 'PYTHONPATH': '/home/robot/robotws/build/demo134/prefix_override:/home/robot/robotws/install/demo134/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages', 'COLCON': '1', 'VTE_VERSION': '6800'}, 'shell': False}
+[1.550442] (hebiros) Command: {'cmd': ['/usr/bin/python3', 'setup.py', 'develop', '--editable', '--build-directory', '/home/robot/robotws/build/hebiros/build', '--no-deps', 'install_data'], 'cwd': '/home/robot/robotws/build/hebiros', 'env': {'VNCDESKTOP': 'HAL:1 (robot)', 'LESSOPEN': '| /usr/bin/lesspipe %s', 'USER': 'robot', 'SSH_CLIENT': 'fe80::4a76:1429:629d:8fc%wlp58s0 53652 22', 'SSH_AGENT_PID': '1717', 'XDG_SESSION_TYPE': 'x11', 'SHLVL': '1', 'LD_LIBRARY_PATH': '/usr/lib/x86_64-linux-gnu/gazebo-11/plugins:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib', 'MOTD_SHOWN': 'pam', 'HOME': '/home/robot', 'OLDPWD': '/home/robot', 'SSH_TTY': '/dev/pts/0', 'ROS_PYTHON_VERSION': '3', 'GTK_MODULES': 'gail:atk-bridge', 'SYSTEMD_EXEC_PID': '1874', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1001/bus', 'COLORTERM': 'truecolor', '_colcon_cd_root': '/opt/ros/humble/', 'COLCON_PREFIX_PATH': '/home/robot/robotws/install', 'ROS_DISTRO': 'humble', 'GTK_IM_MODULE': 'ibus', 'LOGNAME': 'robot', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'XDG_SESSION_CLASS': 'user', 'TERM': 'xterm-256color', 'GNOME_DESKTOP_SESSION_ID': 'this-is-deprecated', 'ROS_LOCALHOST_ONLY': '1', 'PATH': '/home/robot/bin:/home/robot/bin:/home/robot/bin:/opt/ros/humble/bin:/home/robot/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin', 'SESSION_MANAGER': 'local/HAL:@/tmp/.ICE-unix/1833,unix/HAL:/tmp/.ICE-unix/1833', 'XDG_MENU_PREFIX': 'gnome-', 'GNOME_TERMINAL_SCREEN': '/org/gnome/Terminal/screen/e543540c_504c_4a81_a38f_0e2541fcdbde', 'XDG_RUNTIME_DIR': '/run/user/1001', 'DISPLAY': ':1', 'LANG': 'en_US.UTF-8', 'XDG_CURRENT_DESKTOP': 'GNOME', 'XMODIFIERS': '@im=ibus', 'LS_COLORS': 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:', 'GNOME_TERMINAL_SERVICE': ':1.106', 'SSH_AUTH_SOCK': '/run/user/1001/keyring/ssh', 'ROS_DOMAIN_ID': '1', 'AMENT_PREFIX_PATH': '/opt/ros/humble', 'SHELL': '/bin/bash', 'QT_ACCESSIBILITY': '1', 'LESSCLOSE': '/usr/bin/lesspipe %s %s', 'GPG_AGENT_INFO': '/run/user/1001/gnupg/S.gpg-agent:0:1', 'QT_IM_MODULE': 'ibus', 'PWD': '/home/robot/robotws/build/hebiros', 'SSH_CONNECTION': 'fe80::4a76:1429:629d:8fc%wlp58s0 53652 fe80::2bc3:b411:bb3c:8b68%wlp58s0 22', 'CLUTTER_IM_MODULE': 'ibus', 'XDG_DATA_DIRS': '/usr/share/gnome:/usr/local/share:/usr/share:/var/lib/snapd/desktop', 'PYTHONPATH': '/home/robot/robotws/build/hebiros/prefix_override:/home/robot/robotws/install/hebiros/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages', 'COLCON': '1', 'VTE_VERSION': '6800'}, 'shell': False}
+[1.603793] (-) TimerEvent: {}
+[1.704139] (-) TimerEvent: {}
+[1.804424] (-) TimerEvent: {}
+[1.837394] (demo134) StdoutLine: {'line': b'running develop\n'}
+[1.838468] (demo134) StderrLine: {'line': b'/usr/lib/python3/dist-packages/setuptools/command/easy_install.py:158: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.\n'}
+[1.838634] (demo134) StderrLine: {'line': b'  warnings.warn(\n'}
+[1.838813] (hebiros) StdoutLine: {'line': b'running develop\n'}
+[1.839097] (hebiros) StderrLine: {'line': b'/usr/lib/python3/dist-packages/setuptools/command/easy_install.py:158: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.\n'}
+[1.839242] (hebiros) StderrLine: {'line': b'  warnings.warn(\n'}
+[1.840224] (demo134) StderrLine: {'line': b'/usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.\n'}
+[1.840409] (demo134) StderrLine: {'line': b'  warnings.warn(\n'}
+[1.840519] (hebiros) StderrLine: {'line': b'/usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.\n'}
+[1.840617] (hebiros) StderrLine: {'line': b'  warnings.warn(\n'}
+[1.904518] (-) TimerEvent: {}
+[2.004806] (-) TimerEvent: {}
+[2.050714] (hebiros) StdoutLine: {'line': b'running egg_info\n'}
+[2.050961] (hebiros) StdoutLine: {'line': b'creating hebiros.egg-info\n'}
+[2.051090] (hebiros) StdoutLine: {'line': b'writing hebiros.egg-info/PKG-INFO\n'}
+[2.051256] (hebiros) StdoutLine: {'line': b'writing dependency_links to hebiros.egg-info/dependency_links.txt\n'}
+[2.051373] (hebiros) StdoutLine: {'line': b'writing entry points to hebiros.egg-info/entry_points.txt\n'}
+[2.051534] (hebiros) StdoutLine: {'line': b'writing requirements to hebiros.egg-info/requires.txt\n'}
+[2.051663] (hebiros) StdoutLine: {'line': b'writing top-level names to hebiros.egg-info/top_level.txt\n'}
+[2.051815] (hebiros) StdoutLine: {'line': b"writing manifest file 'hebiros.egg-info/SOURCES.txt'\n"}
+[2.052185] (demo134) StdoutLine: {'line': b'running egg_info\n'}
+[2.052353] (demo134) StdoutLine: {'line': b'creating demo134.egg-info\n'}
+[2.052527] (demo134) StdoutLine: {'line': b'writing demo134.egg-info/PKG-INFO\n'}
+[2.052777] (demo134) StdoutLine: {'line': b'writing dependency_links to demo134.egg-info/dependency_links.txt\n'}
+[2.052939] (demo134) StdoutLine: {'line': b'writing entry points to demo134.egg-info/entry_points.txt\n'}
+[2.053107] (demo134) StdoutLine: {'line': b'writing requirements to demo134.egg-info/requires.txt\n'}
+[2.053247] (demo134) StdoutLine: {'line': b'writing top-level names to demo134.egg-info/top_level.txt\n'}
+[2.053383] (hebiros) StdoutLine: {'line': b"reading manifest file 'hebiros.egg-info/SOURCES.txt'\n"}
+[2.053575] (demo134) StdoutLine: {'line': b"writing manifest file 'demo134.egg-info/SOURCES.txt'\n"}
+[2.053886] (hebiros) StdoutLine: {'line': b"writing manifest file 'hebiros.egg-info/SOURCES.txt'\n"}
+[2.055000] (hebiros) StdoutLine: {'line': b'running build_ext\n'}
+[2.055189] (hebiros) StdoutLine: {'line': b'Creating /home/robot/robotws/install/hebiros/lib/python3.10/site-packages/hebiros.egg-link (link to .)\n'}
+[2.055365] (demo134) StdoutLine: {'line': b"reading manifest file 'demo134.egg-info/SOURCES.txt'\n"}
+[2.055948] (hebiros) StdoutLine: {'line': b'Installing hebiforce script to /home/robot/robotws/install/hebiros/lib/hebiros\n'}
+[2.056186] (demo134) StdoutLine: {'line': b"writing manifest file 'demo134.egg-info/SOURCES.txt'\n"}
+[2.056376] (hebiros) StdoutLine: {'line': b'Installing hebinode script to /home/robot/robotws/install/hebiros/lib/hebiros\n'}
+[2.056525] (hebiros) StdoutLine: {'line': b'Installing hebiscan script to /home/robot/robotws/install/hebiros/lib/hebiros\n'}
+[2.056634] (hebiros) StdoutLine: {'line': b'Installing hebitune script to /home/robot/robotws/install/hebiros/lib/hebiros\n'}
+[2.056778] (hebiros) StdoutLine: {'line': b'Installing testsend script to /home/robot/robotws/install/hebiros/lib/hebiros\n'}
+[2.056917] (hebiros) StdoutLine: {'line': b'\n'}
+[2.057157] (hebiros) StdoutLine: {'line': b'Installed /home/robot/robotws/build/hebiros\n'}
+[2.057302] (hebiros) StdoutLine: {'line': b'running install_data\n'}
+[2.057434] (hebiros) StdoutLine: {'line': b'creating /home/robot/robotws/install/hebiros/share/ament_index\n'}
+[2.057574] (hebiros) StdoutLine: {'line': b'creating /home/robot/robotws/install/hebiros/share/ament_index/resource_index\n'}
+[2.057752] (hebiros) StdoutLine: {'line': b'creating /home/robot/robotws/install/hebiros/share/ament_index/resource_index/packages\n'}
+[2.057863] (hebiros) StdoutLine: {'line': b'copying resource/hebiros -> /home/robot/robotws/install/hebiros/share/ament_index/resource_index/packages\n'}
+[2.058018] (hebiros) StdoutLine: {'line': b'copying package.xml -> /home/robot/robotws/install/hebiros/share/hebiros\n'}
+[2.058161] (hebiros) StdoutLine: {'line': b'creating /home/robot/robotws/install/hebiros/share/hebiros/params\n'}
+[2.058265] (hebiros) StdoutLine: {'line': b'copying params/hebitest.yaml -> /home/robot/robotws/install/hebiros/share/hebiros/params\n'}
+[2.058367] (hebiros) StdoutLine: {'line': b'creating /home/robot/robotws/install/hebiros/share/hebiros/launch\n'}
+[2.058467] (demo134) StdoutLine: {'line': b'running build_ext\n'}
+[2.058569] (demo134) StdoutLine: {'line': b'Creating /home/robot/robotws/install/demo134/lib/python3.10/site-packages/demo134.egg-link (link to .)\n'}
+[2.058671] (hebiros) StdoutLine: {'line': b'copying launch/hebitest.launch.py -> /home/robot/robotws/install/hebiros/share/hebiros/launch\n'}
+[2.058902] (demo134) StdoutLine: {'line': b'Installing demo134 script to /home/robot/robotws/install/demo134/lib/demo134\n'}
+[2.059192] (demo134) StdoutLine: {'line': b'\n'}
+[2.059348] (demo134) StdoutLine: {'line': b'Installed /home/robot/robotws/build/demo134\n'}
+[2.059553] (demo134) StdoutLine: {'line': b'running install_data\n'}
+[2.059743] (demo134) StdoutLine: {'line': b'creating /home/robot/robotws/install/demo134/share/ament_index\n'}
+[2.059890] (demo134) StdoutLine: {'line': b'creating /home/robot/robotws/install/demo134/share/ament_index/resource_index\n'}
+[2.060049] (demo134) StdoutLine: {'line': b'creating /home/robot/robotws/install/demo134/share/ament_index/resource_index/packages\n'}
+[2.060186] (demo134) StdoutLine: {'line': b'copying resource/demo134 -> /home/robot/robotws/install/demo134/share/ament_index/resource_index/packages\n'}
+[2.060295] (demo134) StdoutLine: {'line': b'copying package.xml -> /home/robot/robotws/install/demo134/share/demo134\n'}
+[2.060400] (demo134) StdoutLine: {'line': b'creating /home/robot/robotws/install/demo134/share/demo134/launch\n'}
+[2.060502] (demo134) StdoutLine: {'line': b'copying launch/demo134.launch.py -> /home/robot/robotws/install/demo134/share/demo134/launch\n'}
+[2.086900] (hebiros) CommandEnded: {'returncode': 0}
+[2.105648] (-) TimerEvent: {}
+[2.176518] (hebiros) JobEnded: {'identifier': 'hebiros', 'rc': 0}
+[2.177772] (demo134) CommandEnded: {'returncode': 0}
+[2.205759] (-) TimerEvent: {}
+[2.270589] (demo134) JobEnded: {'identifier': 'demo134', 'rc': 0}
+[2.271181] (-) EventReactorShutdown: {}

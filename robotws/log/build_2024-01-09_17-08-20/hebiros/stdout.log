@@ -1,0 +1,19 @@
+running develop
+running egg_info
+writing hebiros.egg-info/PKG-INFO
+writing dependency_links to hebiros.egg-info/dependency_links.txt
+writing entry points to hebiros.egg-info/entry_points.txt
+writing requirements to hebiros.egg-info/requires.txt
+writing top-level names to hebiros.egg-info/top_level.txt
+reading manifest file 'hebiros.egg-info/SOURCES.txt'
+writing manifest file 'hebiros.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/robot/robotws/install/hebiros/lib/python3.10/site-packages/hebiros.egg-link (link to .)
+Installing hebiforce script to /home/robot/robotws/install/hebiros/lib/hebiros
+Installing hebinode script to /home/robot/robotws/install/hebiros/lib/hebiros
+Installing hebiscan script to /home/robot/robotws/install/hebiros/lib/hebiros
+Installing hebitune script to /home/robot/robotws/install/hebiros/lib/hebiros
+Installing testsend script to /home/robot/robotws/install/hebiros/lib/hebiros
+
+Installed /home/robot/robotws/build/hebiros
+running install_data
