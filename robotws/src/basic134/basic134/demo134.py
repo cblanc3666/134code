@@ -14,6 +14,7 @@ from geometry_msgs.msg          import Point
 from basic134.Segments          import GotoCubic
 from basic134.KinematicChain    import KinematicChain
 from basic134.TransformHelpers  import *
+from std_msgs.msg               import Float32
 
 # ros2 topic pub -1 /point geometry_msgs/msg/Point "{x: 0.2, y: 0.3, z: 0.1}"
 
@@ -40,6 +41,8 @@ class DemoNode(Node):
     start_time = 0
     msg_time = -sum(DURATIONS)
     segments = [None, None, None, None]
+
+    grav = 1.65
 
     # Initialization.
     def __init__(self, name):
@@ -76,6 +79,8 @@ class DemoNode(Node):
         # Report.
         self.get_logger().info("Running %s" % name)
         self.chain = KinematicChain('world', 'tip', self.jointnames())
+
+        self.numbersub = self.create_subscription(Float32, '/number', self.cb_number, 1)
 
         # Pick the convergence bandwidth.
         self.lam = 20.0
@@ -135,6 +140,10 @@ class DemoNode(Node):
 
         # Report.
         self.get_logger().info("Going to point %r, %r, %r" % (x,y,z))
+    
+    def cb_number(self, msg):
+        self.grav = msg.data
+        self.get_logger().info("Received: %r gravity" % msg.data)
 
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):
@@ -157,7 +166,13 @@ class DemoNode(Node):
         self.cmdmsg.header.stamp = self.get_clock().now().to_msg()
         self.cmdmsg.name         = ['base', 'shoulder', 'elbow']
         self.cmdmsg.velocity     = [0.0, 0.0, 0.0]
-        self.cmdmsg.effort       = [0.0, 0.0, 0.0]
+        self.cmdmsg.effort       = [0.0, self.grav * -np.sin(self.position[1]), 0.0]
+
+        nan = float("nan")
+        self.cmdmsg.position = (nan, nan, nan)
+        self.cmdmsg.velocity = (nan, nan, nan)
+        self.cmdpub.publish(self.cmdmsg)
+        return
 
         if time < DURATIONS[0]:
             # Evaluate p and v at time using the first cubic spline
