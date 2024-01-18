@@ -21,6 +21,7 @@ from basic134.TransformHelpers  import *
 #   Definitions
 #
 RATE = 100.0            # Hertz
+gamma = 0.1
 
 # Target position for each spline segment
 END_POS = [[0.0, 0.0, 0.0],
@@ -185,53 +186,37 @@ class DemoNode(Node):
 
         else:
             (ptip, Rtip, Jv, Jw) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
-            # self.get_logger().info("tip: %r" % ptip)
-            gamma = 0.1
 
-            (pd, vd) = self.segments[2].evaluate(min(time - sum(DURATIONS[0:2]), DURATIONS[2]))
+            if time - self.msg_time < DURATIONS[2]:
+                (pd, vd) = self.segments[2].evaluate(time - self.msg_time)
+            elif time - self.msg_time < sum(DURATIONS[2:4]):
+                (pd, vd) = self.segments[2].evaluate(DURATIONS[2])
+            elif time - self.msg_time < sum(DURATIONS[2:5]):
+                (pd, vd) = self.segments[3].evaluate(time - self.msg_time - sum(DURATIONS[2:4]))
+            else:
+                p = END_POS[1]
+                v = [0.0, 0.0, 0.0]
+                self.cmdmsg.position = list(p)
+                self.cmdmsg.velocity = list(v)
+                self.cmdpub.publish(self.cmdmsg)
+                return
             
-            # vd   = np.reshape([0.0, -0.2, 0.0], (-1, 1)) ## desired trajectory
             vr   = vd + self.lam * ep(pd, ptip)
 
             Jinv = Jv.T @ np.linalg.pinv(Jv @ Jv.T + gamma**2 * np.eye(3))
             qdot = Jinv @ vr ## ikin result
 
-            # self.get_logger().info("qdot: %r" % qdot)
-
             q = np.reshape(self.position, (-1, 1)) + qdot / RATE
-            
 
-            # self.get_logger().info("position: %r" % q)
-            # print(qdot)
-
-            # integrate to get position based on qdot
             self.cmdmsg.position = list(q.flatten())
             self.cmdmsg.velocity = list(qdot.flatten())
 
             # self.get_logger().info("cmdpos: %r" % self.cmdmsg.position)
             # self.get_logger().info("cmdvel: %r" % self.cmdmsg.velocity)
             # self.get_logger().info("desired vel: %r" % qdot)
-            self.get_logger().info("error: %r" % ep(pd, ptip))
+            self.get_logger().info("Error: %r" % ep(pd, ptip))
+
             self.cmdpub.publish(self.cmdmsg)
-
-
-
-            # GotoCubic(np.array([x, y, z]), np.array(END_POS[1]), DURATIONS[4])
-
-            # if time - self.msg_time < DURATIONS[2]:
-            #     (p, v) = self.segments[2].evaluate(time - self.msg_time)
-            # elif time - self.msg_time < sum(DURATIONS[2:4]):
-            #     (p, v) = self.segments[2].evaluate(DURATIONS[2])
-            #     v = [0.0, 0.0, 0.0]
-            # elif time - self.msg_time < sum(DURATIONS[2:5]):
-            #     (p, v) = self.segments[3].evaluate(time - self.msg_time - sum(DURATIONS[2:4]))
-            # else:
-            #     p = END_POS[1]
-            #     v = [0.0, 0.0, 0.0]
-
-            # self.cmdmsg.position = list(p)
-            # self.cmdmsg.velocity = list(v)
-            # self.cmdpub.publish(self.cmdmsg)
 
         # print(np.reshape(self.position, (-1, 1)), "\n")
 
