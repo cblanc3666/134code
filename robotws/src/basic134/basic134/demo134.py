@@ -15,6 +15,7 @@ from basic134.Segments          import GotoCubic
 from basic134.KinematicChain    import KinematicChain
 from basic134.TransformHelpers  import *
 
+# ros2 topic pub -1 /point geometry_msgs/msg/Point "{x: 0.2, y: 0.3, z: 0.1}"
 
 #
 #   Definitions
@@ -27,7 +28,7 @@ END_POS = [[0.0, 0.0, 0.0],
 
 # Duration for each spline segment
 # DURATIONS[3] = Hold time at commanded point
-DURATIONS = [5.0, 3.0, 3.0, 3.0, 6.0]
+DURATIONS = [5.0, 3.0, 6.0, 3.0, 6.0]
 
 #
 #   DEMO Node Class
@@ -126,9 +127,10 @@ class DemoNode(Node):
         self.msg_time = self.get_clock().now().nanoseconds * 1e-9 - self.start_time
         
         # Go to command position JOINT SPACE
-        self.segments[2] = GotoCubic(np.array(END_POS[1]), np.array([x, y, z]), DURATIONS[2])
+        (task_wait_pos, _, _, _) = self.chain.fkin(np.reshape(END_POS[1], (-1, 1)))
+        self.segments[2] = GotoCubic(task_wait_pos, np.reshape([x, y, z], (-1, 1)), DURATIONS[2])
         # Return back
-        self.segments[3] = GotoCubic(np.array([x, y, z]), np.array(END_POS[1]), DURATIONS[4])
+        self.segments[3] = GotoCubic(np.reshape([x, y, z], (-1, 1)), task_wait_pos, DURATIONS[4])
 
         # Report.
         self.get_logger().info("Going to point %r, %r, %r" % (x,y,z))
@@ -181,14 +183,12 @@ class DemoNode(Node):
             (wait_pos, _, _, _) = self.chain.fkin(np.reshape(END_POS[1], (-1, 1)))
             ending_pos = wait_pos + np.reshape([0.0, -0.5, 0.2], (-1, 1))
 
-            self.segments[2] = GotoCubic(wait_pos, ending_pos, DURATIONS[2])
-
         else:
             (ptip, Rtip, Jv, Jw) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
             # self.get_logger().info("tip: %r" % ptip)
             gamma = 0.1
 
-            (pd, vd) = self.segments[2].evaluate(min(time - sum(DURATIONS[0:2]), 3))
+            (pd, vd) = self.segments[2].evaluate(min(time - sum(DURATIONS[0:2]), DURATIONS[2]))
             
             # vd   = np.reshape([0.0, -0.2, 0.0], (-1, 1)) ## desired trajectory
             vr   = vd + self.lam * ep(pd, ptip)
