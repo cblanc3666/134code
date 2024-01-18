@@ -1,0 +1,108 @@
+[0.000000] (-) TimerEvent: {}
+[0.000244] (basic134) JobQueued: {'identifier': 'basic134', 'dependencies': OrderedDict()}
+[0.000313] (demo134) JobQueued: {'identifier': 'demo134', 'dependencies': OrderedDict()}
+[0.000440] (hebiros) JobQueued: {'identifier': 'hebiros', 'dependencies': OrderedDict()}
+[0.000520] (basic134) JobStarted: {'identifier': 'basic134'}
+[0.076957] (demo134) JobStarted: {'identifier': 'demo134'}
+[0.098972] (-) TimerEvent: {}
+[0.153322] (hebiros) JobStarted: {'identifier': 'hebiros'}
+[0.199108] (-) TimerEvent: {}
+[0.299638] (-) TimerEvent: {}
+[0.400007] (-) TimerEvent: {}
+[0.500394] (-) TimerEvent: {}
+[0.600850] (-) TimerEvent: {}
+[0.701209] (-) TimerEvent: {}
+[0.801531] (-) TimerEvent: {}
+[0.901789] (-) TimerEvent: {}
+[1.002106] (-) TimerEvent: {}
+[1.102434] (-) TimerEvent: {}
+[1.202746] (-) TimerEvent: {}
+[1.303079] (-) TimerEvent: {}
+[1.403794] (-) TimerEvent: {}
+[1.504334] (-) TimerEvent: {}
+[1.604993] (-) TimerEvent: {}
+[1.622675] (demo134) Command: {'cmd': ['/usr/bin/python3', 'setup.py', 'develop', '--editable', '--build-directory', '/home/robot/134code/robotws/build/demo134/build', '--no-deps', 'install_data'], 'cwd': '/home/robot/134code/robotws/build/demo134', 'env': {'LESSOPEN': '| /usr/bin/lesspipe %s', 'USER': 'robot', 'SSH_CLIENT': 'fe80::e071:ef15:af19:6df%wlp58s0 51132 22', 'XDG_SESSION_TYPE': 'tty', 'GIT_ASKPASS': '/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/extensions/git/dist/askpass.sh', 'SHLVL': '1', 'LD_LIBRARY_PATH': '/usr/lib/x86_64-linux-gnu/gazebo-11/plugins:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib', 'BROWSER': '/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/bin/helpers/browser.sh', 'MOTD_SHOWN': 'pam', 'HOME': '/home/robot', 'OLDPWD': '/home/robot/134code/robotws/src', 'TERM_PROGRAM_VERSION': '1.85.1', 'VSCODE_IPC_HOOK_CLI': '/run/user/1001/vscode-ipc-1c1ac11c-8704-4dcf-9fb1-782f871937d0.sock', 'ROS_PYTHON_VERSION': '3', 'VSCODE_GIT_ASKPASS_MAIN': '/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/extensions/git/dist/askpass-main.js', 'VSCODE_GIT_ASKPASS_NODE': '/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/node', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1001/bus', 'COLORTERM': 'truecolor', '_colcon_cd_root': '/opt/ros/humble/', 'ROS_DISTRO': 'humble', 'LOGNAME': 'robot', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'XDG_SESSION_CLASS': 'user', 'TERM': 'xterm-256color', 'XDG_SESSION_ID': '5', 'ROS_LOCALHOST_ONLY': '1', 'PATH': '/home/robot/bin:/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/bin/remote-cli:/home/robot/bin:/opt/ros/humble/bin:/home/robot/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin', 'XDG_RUNTIME_DIR': '/run/user/1001', 'LANG': 'en_US.UTF-8', 'LS_COLORS': 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:', 'VSCODE_GIT_IPC_HANDLE': '/run/user/1001/vscode-git-8b86511bf4.sock', 'TERM_PROGRAM': 'vscode', 'ROS_DOMAIN_ID': '1', 'AMENT_PREFIX_PATH': '/opt/ros/humble', 'SHELL': '/bin/bash', 'LESSCLOSE': '/usr/bin/lesspipe %s %s', 'VSCODE_GIT_ASKPASS_EXTRA_ARGS': '', 'PWD': '/home/robot/134code/robotws/build/demo134', 'SSH_CONNECTION': 'fe80::e071:ef15:af19:6df%wlp58s0 51132 fe80::2bc3:b411:bb3c:8b68%wlp58s0 22', 'XDG_DATA_DIRS': '/usr/share/gnome:/usr/local/share:/usr/share:/var/lib/snapd/desktop', 'PYTHONPATH': '/home/robot/134code/robotws/build/demo134/prefix_override:/home/robot/134code/robotws/install/demo134/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages', 'COLCON': '1'}, 'shell': False}
+[1.705108] (-) TimerEvent: {}
+[1.805726] (-) TimerEvent: {}
+[1.868297] (basic134) Command: {'cmd': ['/usr/bin/python3', 'setup.py', 'develop', '--editable', '--build-directory', '/home/robot/134code/robotws/build/basic134/build', '--no-deps', 'install_data'], 'cwd': '/home/robot/134code/robotws/build/basic134', 'env': {'LESSOPEN': '| /usr/bin/lesspipe %s', 'USER': 'robot', 'SSH_CLIENT': 'fe80::e071:ef15:af19:6df%wlp58s0 51132 22', 'XDG_SESSION_TYPE': 'tty', 'GIT_ASKPASS': '/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/extensions/git/dist/askpass.sh', 'SHLVL': '1', 'LD_LIBRARY_PATH': '/usr/lib/x86_64-linux-gnu/gazebo-11/plugins:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib', 'BROWSER': '/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/bin/helpers/browser.sh', 'MOTD_SHOWN': 'pam', 'HOME': '/home/robot', 'OLDPWD': '/home/robot/134code/robotws/src', 'TERM_PROGRAM_VERSION': '1.85.1', 'VSCODE_IPC_HOOK_CLI': '/run/user/1001/vscode-ipc-1c1ac11c-8704-4dcf-9fb1-782f871937d0.sock', 'ROS_PYTHON_VERSION': '3', 'VSCODE_GIT_ASKPASS_MAIN': '/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/extensions/git/dist/askpass-main.js', 'VSCODE_GIT_ASKPASS_NODE': '/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/node', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1001/bus', 'COLORTERM': 'truecolor', '_colcon_cd_root': '/opt/ros/humble/', 'ROS_DISTRO': 'humble', 'LOGNAME': 'robot', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'XDG_SESSION_CLASS': 'user', 'TERM': 'xterm-256color', 'XDG_SESSION_ID': '5', 'ROS_LOCALHOST_ONLY': '1', 'PATH': '/home/robot/bin:/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/bin/remote-cli:/home/robot/bin:/opt/ros/humble/bin:/home/robot/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin', 'XDG_RUNTIME_DIR': '/run/user/1001', 'LANG': 'en_US.UTF-8', 'LS_COLORS': 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:', 'VSCODE_GIT_IPC_HANDLE': '/run/user/1001/vscode-git-8b86511bf4.sock', 'TERM_PROGRAM': 'vscode', 'ROS_DOMAIN_ID': '1', 'AMENT_PREFIX_PATH': '/opt/ros/humble', 'SHELL': '/bin/bash', 'LESSCLOSE': '/usr/bin/lesspipe %s %s', 'VSCODE_GIT_ASKPASS_EXTRA_ARGS': '', 'PWD': '/home/robot/134code/robotws/build/basic134', 'SSH_CONNECTION': 'fe80::e071:ef15:af19:6df%wlp58s0 51132 fe80::2bc3:b411:bb3c:8b68%wlp58s0 22', 'XDG_DATA_DIRS': '/usr/share/gnome:/usr/local/share:/usr/share:/var/lib/snapd/desktop', 'PYTHONPATH': '/home/robot/134code/robotws/build/basic134/prefix_override:/home/robot/134code/robotws/install/basic134/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages', 'COLCON': '1'}, 'shell': False}
+[1.873618] (hebiros) Command: {'cmd': ['/usr/bin/python3', 'setup.py', 'develop', '--editable', '--build-directory', '/home/robot/134code/robotws/build/hebiros/build', '--no-deps', 'install_data'], 'cwd': '/home/robot/134code/robotws/build/hebiros', 'env': {'LESSOPEN': '| /usr/bin/lesspipe %s', 'USER': 'robot', 'SSH_CLIENT': 'fe80::e071:ef15:af19:6df%wlp58s0 51132 22', 'XDG_SESSION_TYPE': 'tty', 'GIT_ASKPASS': '/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/extensions/git/dist/askpass.sh', 'SHLVL': '1', 'LD_LIBRARY_PATH': '/usr/lib/x86_64-linux-gnu/gazebo-11/plugins:/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib', 'BROWSER': '/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/bin/helpers/browser.sh', 'MOTD_SHOWN': 'pam', 'HOME': '/home/robot', 'OLDPWD': '/home/robot/134code/robotws/src', 'TERM_PROGRAM_VERSION': '1.85.1', 'VSCODE_IPC_HOOK_CLI': '/run/user/1001/vscode-ipc-1c1ac11c-8704-4dcf-9fb1-782f871937d0.sock', 'ROS_PYTHON_VERSION': '3', 'VSCODE_GIT_ASKPASS_MAIN': '/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/extensions/git/dist/askpass-main.js', 'VSCODE_GIT_ASKPASS_NODE': '/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/node', 'DBUS_SESSION_BUS_ADDRESS': 'unix:path=/run/user/1001/bus', 'COLORTERM': 'truecolor', '_colcon_cd_root': '/opt/ros/humble/', 'ROS_DISTRO': 'humble', 'LOGNAME': 'robot', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'XDG_SESSION_CLASS': 'user', 'TERM': 'xterm-256color', 'XDG_SESSION_ID': '5', 'ROS_LOCALHOST_ONLY': '1', 'PATH': '/home/robot/bin:/home/robot/.vscode-server/bin/0ee08df0cf4527e40edc9aa28f4b5bd38bbff2b2/bin/remote-cli:/home/robot/bin:/opt/ros/humble/bin:/home/robot/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin', 'XDG_RUNTIME_DIR': '/run/user/1001', 'LANG': 'en_US.UTF-8', 'LS_COLORS': 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.webp=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:', 'VSCODE_GIT_IPC_HANDLE': '/run/user/1001/vscode-git-8b86511bf4.sock', 'TERM_PROGRAM': 'vscode', 'ROS_DOMAIN_ID': '1', 'AMENT_PREFIX_PATH': '/opt/ros/humble', 'SHELL': '/bin/bash', 'LESSCLOSE': '/usr/bin/lesspipe %s %s', 'VSCODE_GIT_ASKPASS_EXTRA_ARGS': '', 'PWD': '/home/robot/134code/robotws/build/hebiros', 'SSH_CONNECTION': 'fe80::e071:ef15:af19:6df%wlp58s0 51132 fe80::2bc3:b411:bb3c:8b68%wlp58s0 22', 'XDG_DATA_DIRS': '/usr/share/gnome:/usr/local/share:/usr/share:/var/lib/snapd/desktop', 'PYTHONPATH': '/home/robot/134code/robotws/build/hebiros/prefix_override:/home/robot/134code/robotws/install/hebiros/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages', 'COLCON': '1'}, 'shell': False}
+[1.905817] (-) TimerEvent: {}
+[1.928856] (demo134) StdoutLine: {'line': b'running develop\n'}
+[1.929366] (demo134) StderrLine: {'line': b'/usr/lib/python3/dist-packages/setuptools/command/easy_install.py:158: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.\n'}
+[1.929517] (demo134) StderrLine: {'line': b'  warnings.warn(\n'}
+[1.930828] (demo134) StderrLine: {'line': b'/usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.\n'}
+[1.931710] (demo134) StderrLine: {'line': b'  warnings.warn(\n'}
+[2.005907] (-) TimerEvent: {}
+[2.106184] (-) TimerEvent: {}
+[2.141281] (demo134) StdoutLine: {'line': b'running egg_info\n'}
+[2.141730] (demo134) StdoutLine: {'line': b'writing demo134.egg-info/PKG-INFO\n'}
+[2.142173] (demo134) StdoutLine: {'line': b'writing dependency_links to demo134.egg-info/dependency_links.txt\n'}
+[2.142536] (demo134) StdoutLine: {'line': b'writing entry points to demo134.egg-info/entry_points.txt\n'}
+[2.142859] (demo134) StdoutLine: {'line': b'writing requirements to demo134.egg-info/requires.txt\n'}
+[2.143130] (demo134) StdoutLine: {'line': b'writing top-level names to demo134.egg-info/top_level.txt\n'}
+[2.145415] (demo134) StdoutLine: {'line': b"reading manifest file 'demo134.egg-info/SOURCES.txt'\n"}
+[2.146548] (demo134) StdoutLine: {'line': b"writing manifest file 'demo134.egg-info/SOURCES.txt'\n"}
+[2.147703] (demo134) StdoutLine: {'line': b'running build_ext\n'}
+[2.148597] (demo134) StdoutLine: {'line': b'Creating /home/robot/134code/robotws/install/demo134/lib/python3.10/site-packages/demo134.egg-link (link to .)\n'}
+[2.149817] (demo134) StdoutLine: {'line': b'Installing demo134 script to /home/robot/134code/robotws/install/demo134/lib/demo134\n'}
+[2.150573] (demo134) StdoutLine: {'line': b'\n'}
+[2.151194] (demo134) StdoutLine: {'line': b'Installed /home/robot/134code/robotws/build/demo134\n'}
+[2.151812] (demo134) StdoutLine: {'line': b'running install_data\n'}
+[2.176467] (demo134) CommandEnded: {'returncode': 0}
+[2.206491] (-) TimerEvent: {}
+[2.264311] (demo134) JobEnded: {'identifier': 'demo134', 'rc': 0}
+[2.306610] (-) TimerEvent: {}
+[2.308671] (hebiros) StdoutLine: {'line': b'running develop\n'}
+[2.309083] (hebiros) StderrLine: {'line': b'/usr/lib/python3/dist-packages/setuptools/command/easy_install.py:158: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.\n'}
+[2.309220] (hebiros) StderrLine: {'line': b'  warnings.warn(\n'}
+[2.310740] (hebiros) StderrLine: {'line': b'/usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.\n'}
+[2.310889] (hebiros) StderrLine: {'line': b'  warnings.warn(\n'}
+[2.338697] (basic134) StdoutLine: {'line': b'running develop\n'}
+[2.339146] (basic134) StderrLine: {'line': b'/usr/lib/python3/dist-packages/setuptools/command/easy_install.py:158: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.\n'}
+[2.339328] (basic134) StderrLine: {'line': b'  warnings.warn(\n'}
+[2.340897] (basic134) StderrLine: {'line': b'/usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.\n'}
+[2.341035] (basic134) StderrLine: {'line': b'  warnings.warn(\n'}
+[2.406721] (-) TimerEvent: {}
+[2.506999] (-) TimerEvent: {}
+[2.607280] (-) TimerEvent: {}
+[2.661626] (hebiros) StdoutLine: {'line': b'running egg_info\n'}
+[2.662135] (hebiros) StdoutLine: {'line': b'writing hebiros.egg-info/PKG-INFO\n'}
+[2.662259] (hebiros) StdoutLine: {'line': b'writing dependency_links to hebiros.egg-info/dependency_links.txt\n'}
+[2.662384] (hebiros) StdoutLine: {'line': b'writing entry points to hebiros.egg-info/entry_points.txt\n'}
+[2.662531] (hebiros) StdoutLine: {'line': b'writing requirements to hebiros.egg-info/requires.txt\n'}
+[2.662685] (hebiros) StdoutLine: {'line': b'writing top-level names to hebiros.egg-info/top_level.txt\n'}
+[2.665420] (hebiros) StdoutLine: {'line': b"reading manifest file 'hebiros.egg-info/SOURCES.txt'\n"}
+[2.666514] (hebiros) StdoutLine: {'line': b"writing manifest file 'hebiros.egg-info/SOURCES.txt'\n"}
+[2.668182] (hebiros) StdoutLine: {'line': b'running build_ext\n'}
+[2.668487] (hebiros) StdoutLine: {'line': b'Creating /home/robot/134code/robotws/install/hebiros/lib/python3.10/site-packages/hebiros.egg-link (link to .)\n'}
+[2.669749] (hebiros) StdoutLine: {'line': b'Installing hebiforce script to /home/robot/134code/robotws/install/hebiros/lib/hebiros\n'}
+[2.669931] (hebiros) StdoutLine: {'line': b'Installing hebinode script to /home/robot/134code/robotws/install/hebiros/lib/hebiros\n'}
+[2.670075] (hebiros) StdoutLine: {'line': b'Installing hebiscan script to /home/robot/134code/robotws/install/hebiros/lib/hebiros\n'}
+[2.670212] (hebiros) StdoutLine: {'line': b'Installing hebitune script to /home/robot/134code/robotws/install/hebiros/lib/hebiros\n'}
+[2.670340] (hebiros) StdoutLine: {'line': b'Installing testsend script to /home/robot/134code/robotws/install/hebiros/lib/hebiros\n'}
+[2.670584] (hebiros) StdoutLine: {'line': b'\n'}
+[2.670690] (hebiros) StdoutLine: {'line': b'Installed /home/robot/134code/robotws/build/hebiros\n'}
+[2.670817] (hebiros) StdoutLine: {'line': b'running install_data\n'}
+[2.691272] (basic134) StdoutLine: {'line': b'running egg_info\n'}
+[2.691483] (basic134) StdoutLine: {'line': b'writing basic134.egg-info/PKG-INFO\n'}
+[2.691735] (basic134) StdoutLine: {'line': b'writing dependency_links to basic134.egg-info/dependency_links.txt\n'}
+[2.691940] (basic134) StdoutLine: {'line': b'writing entry points to basic134.egg-info/entry_points.txt\n'}
+[2.692102] (basic134) StdoutLine: {'line': b'writing requirements to basic134.egg-info/requires.txt\n'}
+[2.692238] (basic134) StdoutLine: {'line': b'writing top-level names to basic134.egg-info/top_level.txt\n'}
+[2.694958] (basic134) StdoutLine: {'line': b"reading manifest file 'basic134.egg-info/SOURCES.txt'\n"}
+[2.696269] (basic134) StdoutLine: {'line': b"writing manifest file 'basic134.egg-info/SOURCES.txt'\n"}
+[2.698080] (basic134) StdoutLine: {'line': b'running build_ext\n'}
+[2.698367] (basic134) StdoutLine: {'line': b'Creating /home/robot/134code/robotws/install/basic134/lib/python3.10/site-packages/basic134.egg-link (link to .)\n'}
+[2.699556] (basic134) StdoutLine: {'line': b'Installing demo134 script to /home/robot/134code/robotws/install/basic134/lib/basic134\n'}
+[2.699765] (basic134) StdoutLine: {'line': b'Installing receivepoint script to /home/robot/134code/robotws/install/basic134/lib/basic134\n'}
+[2.699919] (basic134) StdoutLine: {'line': b'Installing table script to /home/robot/134code/robotws/install/basic134/lib/basic134\n'}
+[2.700165] (basic134) StdoutLine: {'line': b'\n'}
+[2.700316] (basic134) StdoutLine: {'line': b'Installed /home/robot/134code/robotws/build/basic134\n'}
+[2.700414] (basic134) StdoutLine: {'line': b'running install_data\n'}
+[2.707382] (hebiros) CommandEnded: {'returncode': 0}
+[2.707954] (-) TimerEvent: {}
+[2.788728] (hebiros) JobEnded: {'identifier': 'hebiros', 'rc': 0}
+[2.789772] (basic134) CommandEnded: {'returncode': 0}
+[2.809213] (-) TimerEvent: {}
+[2.868006] (basic134) JobEnded: {'identifier': 'basic134', 'rc': 0}
+[2.868777] (-) EventReactorShutdown: {}

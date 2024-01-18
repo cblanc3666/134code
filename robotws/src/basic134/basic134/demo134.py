@@ -7,12 +7,13 @@
 import numpy as np
 import rclpy
 
-from rclpy.node               import Node
-from sensor_msgs.msg          import JointState
-from geometry_msgs.msg        import Point
+from rclpy.node                 import Node
+from sensor_msgs.msg            import JointState
+from geometry_msgs.msg          import Point
 
-from basic134.Segments        import GotoCubic
-from basic134.KinematicChain  import KinematicChain
+from basic134.Segments          import GotoCubic
+from basic134.KinematicChain    import KinematicChain
+from basic134.TransformHelpers  import *
 
 
 #
@@ -26,7 +27,7 @@ END_POS = [[0.0, 0.0, 0.0],
 
 # Duration for each spline segment
 # DURATIONS[3] = Hold time at commanded point
-DURATIONS = [5.0, 3.0, 6.0, 3.0, 6.0]
+DURATIONS = [5.0, 3.0, 3.0, 3.0, 6.0]
 
 #
 #   DEMO Node Class
@@ -73,6 +74,9 @@ class DemoNode(Node):
         # Report.
         self.get_logger().info("Running %s" % name)
         self.chain = KinematicChain('world', 'tip', self.jointnames())
+
+        # Pick the convergence bandwidth.
+        self.lam = 20.0
 
     def jointnames(self):
         # Return a list of joint names FOR THE EXPECTED URDF!
@@ -173,25 +177,65 @@ class DemoNode(Node):
 
             self.cmdpub.publish(self.cmdmsg)
             self.msg_time = time - sum(DURATIONS)
-        else:
-            if time - self.msg_time < DURATIONS[2]:
-                (p, v) = self.segments[2].evaluate(time - self.msg_time)
-            elif time - self.msg_time < sum(DURATIONS[2:4]):
-                (p, v) = self.segments[2].evaluate(DURATIONS[2])
-                v = [0.0, 0.0, 0.0]
-            elif time - self.msg_time < sum(DURATIONS[2:5]):
-                (p, v) = self.segments[3].evaluate(time - self.msg_time - sum(DURATIONS[2:4]))
-            else:
-                p = END_POS[1]
-                v = [0.0, 0.0, 0.0]
 
-            self.cmdmsg.position = list(p)
-            self.cmdmsg.velocity = list(v)
+            (wait_pos, _, _, _) = self.chain.fkin(np.reshape(END_POS[1], (-1, 1)))
+            ending_pos = wait_pos + np.reshape([0.0, -0.5, 0.2], (-1, 1))
+
+            self.segments[2] = GotoCubic(wait_pos, ending_pos, DURATIONS[2])
+
+        else:
+            (ptip, Rtip, Jv, Jw) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
+            # self.get_logger().info("tip: %r" % ptip)
+            gamma = 0.1
+
+            (pd, vd) = self.segments[2].evaluate(min(time - sum(DURATIONS[0:2]), 3))
+            
+            # vd   = np.reshape([0.0, -0.2, 0.0], (-1, 1)) ## desired trajectory
+            vr   = vd + self.lam * ep(pd, ptip)
+
+            Jinv = Jv.T @ np.linalg.pinv(Jv @ Jv.T + gamma**2 * np.eye(3))
+            qdot = Jinv @ vr ## ikin result
+
+            # self.get_logger().info("qdot: %r" % qdot)
+
+            q = np.reshape(self.position, (-1, 1)) + qdot / RATE
+            
+
+            # self.get_logger().info("position: %r" % q)
+            # print(qdot)
+
+            # integrate to get position based on qdot
+            self.cmdmsg.position = list(q.flatten())
+            self.cmdmsg.velocity = list(qdot.flatten())
+
+            # self.get_logger().info("cmdpos: %r" % self.cmdmsg.position)
+            # self.get_logger().info("cmdvel: %r" % self.cmdmsg.velocity)
+            # self.get_logger().info("desired vel: %r" % qdot)
+            self.get_logger().info("error: %r" % ep(pd, ptip))
             self.cmdpub.publish(self.cmdmsg)
 
+
+
+            # GotoCubic(np.array([x, y, z]), np.array(END_POS[1]), DURATIONS[4])
+
+            # if time - self.msg_time < DURATIONS[2]:
+            #     (p, v) = self.segments[2].evaluate(time - self.msg_time)
+            # elif time - self.msg_time < sum(DURATIONS[2:4]):
+            #     (p, v) = self.segments[2].evaluate(DURATIONS[2])
+            #     v = [0.0, 0.0, 0.0]
+            # elif time - self.msg_time < sum(DURATIONS[2:5]):
+            #     (p, v) = self.segments[3].evaluate(time - self.msg_time - sum(DURATIONS[2:4]))
+            # else:
+            #     p = END_POS[1]
+            #     v = [0.0, 0.0, 0.0]
+
+            # self.cmdmsg.position = list(p)
+            # self.cmdmsg.velocity = list(v)
+            # self.cmdpub.publish(self.cmdmsg)
+
         # print(np.reshape(self.position, (-1, 1)), "\n")
-        (ptip, Rtip, Jv, Jw) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
-        print(ptip.flatten())
+
+        # print(qdot.flatten(), "\n")
         # print(self.cmdmsg.position)
         # print(time - self.msg_time)
 
