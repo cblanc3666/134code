@@ -21,12 +21,15 @@ from std_msgs.msg               import Float32
 #
 #   Definitions
 #
-RATE = 100.0            # Hertz
+RATE = 100.0            # transmit rate, in Hertz
 gamma = 0.1
 
 # Target position for each spline segment
 END_POS = [[0.0, 0.0, 0.0],
            [0.0, 0.0, -np.pi/2]]
+
+# Initial joint velocity (should be zero)
+QDOT_INIT = [0.0, 0.0, 0.0]
 
 # Duration for each spline segment
 # DURATIONS[3] = Hold time at commanded point
@@ -37,7 +40,8 @@ DURATIONS = [5.0, 3.0, 6.0, 3.0, 6.0]
 #
 class DemoNode(Node):
     position = None
-    # qd = None # desired joint positions TODO
+    q_des = None # desired joint positions 
+    qdot_des = None # desired joint velocities
     start_time = 0
     msg_time = -sum(DURATIONS)
     segments = [None, None, None, None]
@@ -51,6 +55,10 @@ class DemoNode(Node):
 
         # Create a temporary subscriber to grab the initial position.
         self.position0 = self.grabfbk()
+
+        # Set the initial desired position to initial position so robot stay put
+        self.q_des = self.position0
+        self.qdot_des = QDOT_INIT
         
         self.get_logger().info("Initial positions: %r" % self.position0)
 
@@ -159,7 +167,9 @@ class DemoNode(Node):
         # Time since start
         time = self.get_clock().now().nanoseconds * 1e-9 - self.start_time
         
-        if self.position0 is None or self.position is None: # no start position yet
+        if self.position0 is None or \
+            self.position is None or \
+            self.q_des is None: # no start position or desired position yet
             return
 
         self.cmdmsg.header.stamp = self.get_clock().now().to_msg()
@@ -177,29 +187,28 @@ class DemoNode(Node):
             # Evaluate p and v at time using the first cubic spline
             (p, v) = self.segments[0].evaluate(time)
 
-            # Update position and velocity ROS message
-            self.cmdmsg.position = list(p)
-            self.cmdmsg.velocity = list(v)
+            self.q_des = list(p)
+            self.qdot_des = list(v)
 
             # Sets up next spline since base and elbow joints start at arbitrary positions
             self.segments[1] = GotoCubic(np.array(p), np.array(END_POS[1]), DURATIONS[1])
             
-            # Publish commands, makes robot move
-            self.cmdpub.publish(self.cmdmsg)
         elif time < sum(DURATIONS[0:2]):
             #Segement 2: Moving the base and elbow to waiting position
             (p, v) = self.segments[1].evaluate(time - DURATIONS[0])
-            self.cmdmsg.position = list(p)
-            self.cmdmsg.velocity = list(v)
+            
+            self.q_des = list(p)
+            self.qdot_des = list(v)
 
-            self.cmdpub.publish(self.cmdmsg)
+            # indicates that 
             self.msg_time = time - sum(DURATIONS)
 
             (wait_pos, _, _, _) = self.chain.fkin(np.reshape(END_POS[1], (-1, 1)))
             ending_pos = wait_pos + np.reshape([0.0, -0.5, 0.2], (-1, 1))
 
         else:
-            (ptip, Rtip, Jv, Jw) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
+            # run fkin on previous qdes
+            (ptip_des, _, Jv, _) = self.chain.fkin(np.reshape(self.q_des, (-1, 1)))
 
             if time - self.msg_time < DURATIONS[2]:
                 (pd, vd) = self.segments[2].evaluate(time - self.msg_time)
@@ -210,38 +219,43 @@ class DemoNode(Node):
             else:
                 p = END_POS[1]
                 v = [0.0, 0.0, 0.0]
-                self.cmdmsg.position = list(p)
-                self.cmdmsg.velocity = list(v)
-                self.cmdpub.publish(self.cmdmsg)
-                return
+                self.q_des = list(p)
+                self.qdot_des = list(v)
+                
+                (pd, vd) = (None, None)
             
-            vr   = vd + self.lam * ep(pd, ptip)
+            if pd is not None: # we are using spline
+                vr   = vd + self.lam * ep(pd, ptip_des)
 
-            Jinv = Jv.T @ np.linalg.pinv(Jv @ Jv.T + gamma**2 * np.eye(3))
-            qdot = Jinv @ vr ## ikin result
+                Jinv = Jv.T @ np.linalg.pinv(Jv @ Jv.T + gamma**2 * np.eye(3))
+                qdot = Jinv @ vr ## ikin result
 
-            # old version that mixed ikin feedback loop with motor fdbk loop
-            q = np.reshape(self.position, (-1, 1)) + qdot / RATE 
-            # new version that makes q depend solely on qdot instead of current
-            # position as well
-            #if position TODO
-            #q = q + 
+                # old version that mixed ikin feedback loop with motor fdbk loop
+                # q = np.reshape(self.position, (-1, 1)) + qdot / RATE 
+                
+                # new version that makes q depend solely on qdot instead of 
+                # current position as well
+                q = np.reshape(self.q_des, (-1, 1)) + qdot / RATE
 
-            self.cmdmsg.position = list(q.flatten())
-            self.cmdmsg.velocity = list(qdot.flatten())
+                self.q_des = list(q.flatten())
+                self.qdot_des = list(qdot.flatten())
 
-            # self.get_logger().info("cmdpos: %r" % self.cmdmsg.position)
-            # self.get_logger().info("cmdvel: %r" % self.cmdmsg.velocity)
-            # self.get_logger().info("desired vel: %r" % qdot)
-            self.get_logger().info("Error: %r" % ep(pd, ptip))
-
-            self.cmdpub.publish(self.cmdmsg)
+                # self.get_logger().info("cmdpos: %r" % self.cmdmsg.position)
+                # self.get_logger().info("cmdvel: %r" % self.cmdmsg.velocity)
+                # self.get_logger().info("desired vel: %r" % qdot)
+                self.get_logger().info("Error: %r" % ep(pd, ptip_des))
 
         # print(np.reshape(self.position, (-1, 1)), "\n")
 
         # print(qdot.flatten(), "\n")
         # print(self.cmdmsg.position)
         # print(time - self.msg_time)
+
+        self.cmdmsg.position = self.q_des
+        self.cmdmsg.velocity = self.qdot_des
+
+        # Publish commands, makes robot move
+        self.cmdpub.publish(self.cmdmsg)
 
 #
 #   Main Code
