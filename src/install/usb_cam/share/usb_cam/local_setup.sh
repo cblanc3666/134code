@@ -1,0 +1,1 @@
+/home/robot/134code/src/build/usb_cam/ament_cmake_environment_hooks/local_setup.sh

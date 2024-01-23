@@ -1,0 +1,7 @@
+[console_scripts]
+hebiforce = hebiros.hebiforce:main
+hebinode = hebiros.hebinode:main
+hebiscan = hebiros.hebiscan:main
+hebitune = hebiros.hebitune:main
+testsend = hebiros.testsend:main
+

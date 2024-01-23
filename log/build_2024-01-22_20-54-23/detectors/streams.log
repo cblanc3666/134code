@@ -1,0 +1,52 @@
+[0.870s] Invoking command in '/home/robot/134code/build/detectors': AMENT_PREFIX_PATH=/home/robot/134code/install/usb_cam:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/robot/134code/install/usb_cam LD_LIBRARY_PATH=/home/robot/134code/install/usb_cam/lib:${LD_LIBRARY_PATH} PYTHONPATH=/home/robot/134code/build/detectors/prefix_override:/home/robot/134code/install/detectors/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/build/detectors/build --no-deps install_data
+[1.145s] running develop
+[1.145s] /usr/lib/python3/dist-packages/setuptools/command/easy_install.py:158: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.
+[1.146s]   warnings.warn(
+[1.147s] /usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.
+[1.147s]   warnings.warn(
+[1.348s] running egg_info
+[1.348s] creating detectors.egg-info
+[1.348s] writing detectors.egg-info/PKG-INFO
+[1.348s] writing dependency_links to detectors.egg-info/dependency_links.txt
+[1.349s] writing entry points to detectors.egg-info/entry_points.txt
+[1.349s] writing requirements to detectors.egg-info/requires.txt
+[1.349s] writing top-level names to detectors.egg-info/top_level.txt
+[1.349s] writing manifest file 'detectors.egg-info/SOURCES.txt'
+[1.351s] reading manifest file 'detectors.egg-info/SOURCES.txt'
+[1.351s] writing manifest file 'detectors.egg-info/SOURCES.txt'
+[1.353s] running build_ext
+[1.353s] Creating /home/robot/134code/install/detectors/lib/python3.10/site-packages/detectors.egg-link (link to .)
+[1.354s] Installing balldetector script to /home/robot/134code/install/detectors/lib/detectors
+[1.354s] Installing depthincenter script to /home/robot/134code/install/detectors/lib/detectors
+[1.354s] Installing detectaruco script to /home/robot/134code/install/detectors/lib/detectors
+[1.354s] Installing facedepth script to /home/robot/134code/install/detectors/lib/detectors
+[1.354s] Installing facedetector script to /home/robot/134code/install/detectors/lib/detectors
+[1.354s] Installing hsvtune script to /home/robot/134code/install/detectors/lib/detectors
+[1.355s] Installing mapping script to /home/robot/134code/install/detectors/lib/detectors
+[1.355s] Installing writearuco script to /home/robot/134code/install/detectors/lib/detectors
+[1.355s] 
+[1.355s] Installed /home/robot/134code/build/detectors
+[1.355s] running install_data
+[1.355s] creating /home/robot/134code/install/detectors/share/ament_index
+[1.355s] creating /home/robot/134code/install/detectors/share/ament_index/resource_index
+[1.355s] creating /home/robot/134code/install/detectors/share/ament_index/resource_index/packages
+[1.356s] copying resource/detectors -> /home/robot/134code/install/detectors/share/ament_index/resource_index/packages
+[1.356s] copying package.xml -> /home/robot/134code/install/detectors/share/detectors
+[1.356s] creating /home/robot/134code/install/detectors/share/detectors/rviz
+[1.356s] copying rviz/viewurdfandimage.rviz -> /home/robot/134code/install/detectors/share/detectors/rviz
+[1.356s] copying rviz/viewpointcloud.rviz -> /home/robot/134code/install/detectors/share/detectors/rviz
+[1.356s] creating /home/robot/134code/install/detectors/share/detectors/launch
+[1.356s] copying launch/facedepth.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[1.356s] copying launch/hsvtune.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[1.356s] copying launch/balldetector.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[1.357s] copying launch/start_usbcam.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[1.357s] copying launch/realsense_pointcloud.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[1.357s] copying launch/view_usbcam_rviz.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[1.357s] copying launch/realsense_plain.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[1.357s] copying launch/testmapping.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[1.357s] copying launch/realsense_aligned.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[1.357s] copying launch/facedetector.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[1.357s] copying launch/view_usbcam_showimage.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[1.357s] copying launch/view_usbcam_imageview.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[1.358s] copying launch/detectaruco.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[1.382s] Invoked command in '/home/robot/134code/build/detectors' returned '0': AMENT_PREFIX_PATH=/home/robot/134code/install/usb_cam:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/robot/134code/install/usb_cam LD_LIBRARY_PATH=/home/robot/134code/install/usb_cam/lib:${LD_LIBRARY_PATH} PYTHONPATH=/home/robot/134code/build/detectors/prefix_override:/home/robot/134code/install/detectors/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/build/detectors/build --no-deps install_data

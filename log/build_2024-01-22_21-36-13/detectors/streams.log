@@ -1,0 +1,29 @@
+[1.581s] Invoking command in '/home/robot/134code/build/detectors': PYTHONPATH=/home/robot/134code/build/detectors/prefix_override:/home/robot/134code/install/detectors/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/build/detectors/build --no-deps install_data
+[1.891s] running develop
+[1.891s] /usr/lib/python3/dist-packages/setuptools/command/easy_install.py:158: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.
+[1.891s]   warnings.warn(
+[1.894s] /usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.
+[1.894s]   warnings.warn(
+[2.112s] running egg_info
+[2.112s] writing detectors.egg-info/PKG-INFO
+[2.113s] writing dependency_links to detectors.egg-info/dependency_links.txt
+[2.113s] writing entry points to detectors.egg-info/entry_points.txt
+[2.113s] writing requirements to detectors.egg-info/requires.txt
+[2.113s] writing top-level names to detectors.egg-info/top_level.txt
+[2.116s] reading manifest file 'detectors.egg-info/SOURCES.txt'
+[2.117s] writing manifest file 'detectors.egg-info/SOURCES.txt'
+[2.119s] running build_ext
+[2.119s] Creating /home/robot/134code/install/detectors/lib/python3.10/site-packages/detectors.egg-link (link to .)
+[2.120s] Installing balldetector script to /home/robot/134code/install/detectors/lib/detectors
+[2.121s] Installing depthincenter script to /home/robot/134code/install/detectors/lib/detectors
+[2.121s] Installing detectaruco script to /home/robot/134code/install/detectors/lib/detectors
+[2.121s] Installing facedepth script to /home/robot/134code/install/detectors/lib/detectors
+[2.121s] Installing facedetector script to /home/robot/134code/install/detectors/lib/detectors
+[2.121s] Installing hsvtune script to /home/robot/134code/install/detectors/lib/detectors
+[2.122s] Installing mapping script to /home/robot/134code/install/detectors/lib/detectors
+[2.122s] Installing writearuco script to /home/robot/134code/install/detectors/lib/detectors
+[2.122s] 
+[2.122s] Installed /home/robot/134code/build/detectors
+[2.122s] running install_data
+[2.122s] copying launch/demodetector.launch.py -> /home/robot/134code/install/detectors/share/detectors/launch
+[2.148s] Invoked command in '/home/robot/134code/build/detectors' returned '0': PYTHONPATH=/home/robot/134code/build/detectors/prefix_override:/home/robot/134code/install/detectors/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/build/detectors/build --no-deps install_data

@@ -1,0 +1,25 @@
+[2.279s] Invoking command in '/home/robot/134code/build/hebiros': PYTHONPATH=/home/robot/134code/build/hebiros/prefix_override:/home/robot/134code/install/hebiros/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/build/hebiros/build --no-deps install_data
+[2.794s] running develop
+[2.796s] /usr/lib/python3/dist-packages/setuptools/command/easy_install.py:158: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.
+[2.796s]   warnings.warn(
+[2.796s] /usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.
+[2.796s]   warnings.warn(
+[3.091s] running egg_info
+[3.092s] writing hebiros.egg-info/PKG-INFO
+[3.093s] writing dependency_links to hebiros.egg-info/dependency_links.txt
+[3.093s] writing entry points to hebiros.egg-info/entry_points.txt
+[3.094s] writing requirements to hebiros.egg-info/requires.txt
+[3.095s] writing top-level names to hebiros.egg-info/top_level.txt
+[3.095s] reading manifest file 'hebiros.egg-info/SOURCES.txt'
+[3.097s] writing manifest file 'hebiros.egg-info/SOURCES.txt'
+[3.099s] running build_ext
+[3.100s] Creating /home/robot/134code/install/hebiros/lib/python3.10/site-packages/hebiros.egg-link (link to .)
+[3.110s] Installing hebiforce script to /home/robot/134code/install/hebiros/lib/hebiros
+[3.111s] Installing hebinode script to /home/robot/134code/install/hebiros/lib/hebiros
+[3.111s] Installing hebiscan script to /home/robot/134code/install/hebiros/lib/hebiros
+[3.112s] Installing hebitune script to /home/robot/134code/install/hebiros/lib/hebiros
+[3.113s] Installing testsend script to /home/robot/134code/install/hebiros/lib/hebiros
+[3.113s] 
+[3.114s] Installed /home/robot/134code/build/hebiros
+[3.114s] running install_data
+[3.142s] Invoked command in '/home/robot/134code/build/hebiros' returned '0': PYTHONPATH=/home/robot/134code/build/hebiros/prefix_override:/home/robot/134code/install/hebiros/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/build/hebiros/build --no-deps install_data

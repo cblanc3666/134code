@@ -1,0 +1,44 @@
+[2.314s] Invoking command in '/home/robot/134code/src/build/basic134': PYTHONPATH=/home/robot/134code/src/build/basic134/prefix_override:/home/robot/134code/src/install/basic134/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/src/build/basic134/build --no-deps install_data
+[2.837s] running develop
+[2.837s] /usr/lib/python3/dist-packages/setuptools/command/easy_install.py:158: EasyInstallDeprecationWarning: easy_install command is deprecated. Use build and pip and other standards-based tools.
+[2.837s]   warnings.warn(
+[2.839s] /usr/lib/python3/dist-packages/setuptools/command/install.py:34: SetuptoolsDeprecationWarning: setup.py install is deprecated. Use build and pip and other standards-based tools.
+[2.839s]   warnings.warn(
+[3.355s] running egg_info
+[3.355s] creating basic134.egg-info
+[3.356s] writing basic134.egg-info/PKG-INFO
+[3.357s] writing dependency_links to basic134.egg-info/dependency_links.txt
+[3.358s] writing entry points to basic134.egg-info/entry_points.txt
+[3.358s] writing requirements to basic134.egg-info/requires.txt
+[3.358s] writing top-level names to basic134.egg-info/top_level.txt
+[3.359s] writing manifest file 'basic134.egg-info/SOURCES.txt'
+[3.362s] reading manifest file 'basic134.egg-info/SOURCES.txt'
+[3.363s] writing manifest file 'basic134.egg-info/SOURCES.txt'
+[3.366s] running build_ext
+[3.368s] Creating /home/robot/134code/src/install/basic134/lib/python3.10/site-packages/basic134.egg-link (link to .)
+[3.368s] Installing demo134 script to /home/robot/134code/src/install/basic134/lib/basic134
+[3.369s] Installing receivepoint script to /home/robot/134code/src/install/basic134/lib/basic134
+[3.370s] Installing table script to /home/robot/134code/src/install/basic134/lib/basic134
+[3.370s] 
+[3.371s] Installed /home/robot/134code/src/build/basic134
+[3.371s] running install_data
+[3.371s] creating /home/robot/134code/src/install/basic134/share/ament_index
+[3.371s] creating /home/robot/134code/src/install/basic134/share/ament_index/resource_index
+[3.371s] creating /home/robot/134code/src/install/basic134/share/ament_index/resource_index/packages
+[3.371s] copying resource/basic134 -> /home/robot/134code/src/install/basic134/share/ament_index/resource_index/packages
+[3.371s] copying package.xml -> /home/robot/134code/src/install/basic134/share/basic134
+[3.372s] creating /home/robot/134code/src/install/basic134/share/basic134/launch
+[3.372s] copying launch/viewcommand.launch.py -> /home/robot/134code/src/install/basic134/share/basic134/launch
+[3.372s] copying launch/showurdf.launch.py -> /home/robot/134code/src/install/basic134/share/basic134/launch
+[3.372s] copying launch/viewactual.launch.py -> /home/robot/134code/src/install/basic134/share/basic134/launch
+[3.372s] copying launch/example.launch.py -> /home/robot/134code/src/install/basic134/share/basic134/launch
+[3.372s] creating /home/robot/134code/src/install/basic134/share/basic134/rviz
+[3.373s] copying rviz/viewurdf.rviz -> /home/robot/134code/src/install/basic134/share/basic134/rviz
+[3.373s] creating /home/robot/134code/src/install/basic134/share/basic134/meshes
+[3.373s] copying meshes/basiclink.dae -> /home/robot/134code/src/install/basic134/share/basic134/meshes
+[3.373s] copying meshes/basiclink.stl -> /home/robot/134code/src/install/basic134/share/basic134/meshes
+[3.373s] copying meshes/X5.stl -> /home/robot/134code/src/install/basic134/share/basic134/meshes
+[3.377s] copying meshes/X8.stl -> /home/robot/134code/src/install/basic134/share/basic134/meshes
+[3.380s] creating /home/robot/134code/src/install/basic134/share/basic134/urdf
+[3.380s] copying urdf/threedofexample.urdf -> /home/robot/134code/src/install/basic134/share/basic134/urdf
+[3.425s] Invoked command in '/home/robot/134code/src/build/basic134' returned '0': PYTHONPATH=/home/robot/134code/src/build/basic134/prefix_override:/home/robot/134code/src/install/basic134/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py develop --editable --build-directory /home/robot/134code/src/build/basic134/build --no-deps install_data

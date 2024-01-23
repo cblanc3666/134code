@@ -1,0 +1,59 @@
+[0.586s] Invoking command in '/home/robot/134code/build/usb_cam': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/robot/134code/install/detectors:/home/robot/134code/install/hebiros:/home/robot/134code/install/demo134:/home/robot/134code/install/basic134:/home/robot/robotws/install/hebiros:/home/robot/robotws/install/demo134:/home/robot/robotws/install/basic134:/home/robot/install/hebiros:/home/robot/install/demo134:/home/robot/install/basic134:/opt/ros/humble /usr/bin/cmake --build /home/robot/134code/build/usb_cam -- -j4 -l4
+[1.477s] [ 14%] Built target gtest_main
+[1.477s] [ 28%] Built target usb_cam
+[1.478s] [ 42%] Built target usb_cam_node_exe
+[1.478s] [ 57%] Built target gtest
+[1.478s] [ 71%] Built target usb_cam_node
+[1.478s] [ 85%] Built target test_pixel_formats
+[1.478s] [100%] Built target test_usb_cam_utils
+[1.904s] Invoked command in '/home/robot/134code/build/usb_cam' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/robot/134code/install/detectors:/home/robot/134code/install/hebiros:/home/robot/134code/install/demo134:/home/robot/134code/install/basic134:/home/robot/robotws/install/hebiros:/home/robot/robotws/install/demo134:/home/robot/robotws/install/basic134:/home/robot/install/hebiros:/home/robot/install/demo134:/home/robot/install/basic134:/opt/ros/humble /usr/bin/cmake --build /home/robot/134code/build/usb_cam -- -j4 -l4
+[1.979s] Invoking command in '/home/robot/134code/build/usb_cam': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/robot/134code/install/detectors:/home/robot/134code/install/hebiros:/home/robot/134code/install/demo134:/home/robot/134code/install/basic134:/home/robot/robotws/install/hebiros:/home/robot/robotws/install/demo134:/home/robot/robotws/install/basic134:/home/robot/install/hebiros:/home/robot/install/demo134:/home/robot/install/basic134:/opt/ros/humble /usr/bin/cmake --install /home/robot/134code/build/usb_cam
+[1.990s] -- Install configuration: ""
+[1.990s] -- Execute custom install script
+[1.991s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/environment/library_path.sh
+[1.991s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/environment/library_path.dsv
+[1.991s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/lib/usb_cam/usb_cam_node_exe
+[1.991s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/lib/usb_cam/show_image.py
+[1.992s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/lib/libusb_cam.so
+[1.992s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/lib/libusb_cam_node.so
+[1.993s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/constants.hpp
+[1.993s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/conversions.hpp
+[1.993s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/formats/av_pixel_format_helper.hpp
+[1.993s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/formats/m420.hpp
+[1.993s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/formats/mjpeg.hpp
+[1.993s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/formats/mono.hpp
+[1.994s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/formats/pixel_format_base.hpp
+[1.994s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/formats/rgb.hpp
+[1.994s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/formats/utils.hpp
+[1.994s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/formats/uyvy.hpp
+[1.994s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/formats/yuyv.hpp
+[1.994s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/usb_cam.hpp
+[1.995s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/usb_cam_node.hpp
+[1.995s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/include/usb_cam/utils.hpp
+[1.995s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/lib/libusb_cam_node.so
+[1.996s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/launch/__init__.py
+[1.996s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/launch/camera.launch.py
+[1.996s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/launch/camera_config.py
+[1.996s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/config/camera_info.yaml
+[1.996s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/config/params_1.yaml
+[1.997s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/config/params_2.yaml
+[1.997s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/ament_index/resource_index/package_run_dependencies/usb_cam
+[1.997s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/ament_index/resource_index/parent_prefix_path/usb_cam
+[1.997s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/environment/ament_prefix_path.sh
+[1.998s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/environment/ament_prefix_path.dsv
+[1.998s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/environment/path.sh
+[1.998s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/environment/path.dsv
+[1.998s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/local_setup.bash
+[1.998s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/local_setup.sh
+[1.999s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/local_setup.zsh
+[1.999s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/local_setup.dsv
+[1.999s] -- Symlinking: /home/robot/134code/install/usb_cam/share/usb_cam/package.dsv
+[2.023s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/ament_index/resource_index/packages/usb_cam
+[2.024s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/ament_index/resource_index/rclcpp_components/usb_cam
+[2.024s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/cmake/ament_cmake_export_libraries-extras.cmake
+[2.025s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/cmake/ament_cmake_export_dependencies-extras.cmake
+[2.026s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/cmake/ament_cmake_export_include_directories-extras.cmake
+[2.027s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/cmake/usb_camConfig.cmake
+[2.027s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/cmake/usb_camConfig-version.cmake
+[2.028s] -- Up-to-date symlink: /home/robot/134code/install/usb_cam/share/usb_cam/package.xml
+[2.032s] Invoked command in '/home/robot/134code/build/usb_cam' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/home/robot/134code/install/detectors:/home/robot/134code/install/hebiros:/home/robot/134code/install/demo134:/home/robot/134code/install/basic134:/home/robot/robotws/install/hebiros:/home/robot/robotws/install/demo134:/home/robot/robotws/install/basic134:/home/robot/install/hebiros:/home/robot/install/demo134:/home/robot/install/basic134:/opt/ros/humble /usr/bin/cmake --install /home/robot/134code/build/usb_cam

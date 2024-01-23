@@ -1,0 +1,1 @@
+/home/robot/134code/src/usb_cam/scripts/show_image.py
