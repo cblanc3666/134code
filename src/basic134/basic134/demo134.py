@@ -37,7 +37,7 @@ DURATIONS = [5.0, 3.0, 6.0, 3.0, 6.0]
 #
 class DemoNode(Node):
     position = None
-    start_pos = None
+    # qd = None # desired joint positions TODO
     start_time = 0
     msg_time = -sum(DURATIONS)
     segments = [None, None, None, None]
@@ -51,7 +51,16 @@ class DemoNode(Node):
 
         # Create a temporary subscriber to grab the initial position.
         self.position0 = self.grabfbk()
+        
         self.get_logger().info("Initial positions: %r" % self.position0)
+
+        # Start the clock
+        self.start_time = self.get_clock().now().nanoseconds * 1e-9
+
+        # Set up first spline (only shoulder is moving)
+        self.segments[0] = GotoCubic(np.array(self.position0), 
+                                     np.array([self.position0[0], END_POS[0][1], self.position0[2]]),
+                                     DURATIONS[0])
 
         # Create a message and publisher to send the joint commands.
         self.cmdmsg = JointState()
@@ -147,20 +156,10 @@ class DemoNode(Node):
 
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):
-        #Intialize self.start_pos when robot gets very first position
-        if self.position is not None and self.start_pos is None:
-            self.start_pos = self.position
-            self.start_time = self.get_clock().now().nanoseconds * 1e-9
-
-            #Set up first spline (only shoulder is moving)
-            self.segments[0] = GotoCubic(np.array(self.start_pos), 
-                                          np.array([self.start_pos[0], END_POS[0][1], self.start_pos[2]]),
-                                          DURATIONS[0])
-
-        #Time since start
+        # Time since start
         time = self.get_clock().now().nanoseconds * 1e-9 - self.start_time
         
-        if self.start_pos is None:
+        if self.position0 is None or self.position is None: # no start position yet
             return
 
         self.cmdmsg.header.stamp = self.get_clock().now().to_msg()
@@ -221,7 +220,12 @@ class DemoNode(Node):
             Jinv = Jv.T @ np.linalg.pinv(Jv @ Jv.T + gamma**2 * np.eye(3))
             qdot = Jinv @ vr ## ikin result
 
-            q = np.reshape(self.position, (-1, 1)) + qdot / RATE
+            # old version that mixed ikin feedback loop with motor fdbk loop
+            q = np.reshape(self.position, (-1, 1)) + qdot / RATE 
+            # new version that makes q depend solely on qdot instead of current
+            # position as well
+            #if position TODO
+            #q = q + 
 
             self.cmdmsg.position = list(q.flatten())
             self.cmdmsg.velocity = list(qdot.flatten())
