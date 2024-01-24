@@ -126,7 +126,7 @@ def generate_launch_description():
         node_rviz,
         node_hebi,
 
-        node_demo,
+        # node_demo,
         # node_table,
-        # node_point,
+        node_point,
     ])

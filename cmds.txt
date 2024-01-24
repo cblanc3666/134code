@@ -1,3 +1,6 @@
 colcon build --symlink-install
 source install/setup.bash
 ros2 launch basic134 [launch_file_name]
+
+ros2 launch basic134 demo134.launch.py
+ros2 topic pub -1 /point geometry_msgs/msg/Point "{x: 0.0, y: 0.229, z: 0.0}"
