@@ -18,6 +18,7 @@ import cv_bridge
 
 from rclpy.node         import Node
 from sensor_msgs.msg    import Image
+from geometry_msgs.msg  import Point, Pose2D, Pose, Quaternion
 
 
 #
@@ -37,12 +38,14 @@ class DetectorNode(Node):
         super().__init__(name)
 
         # Thresholds in Hmin/max, Smin/max, Vmin/max
-        self.hsvlimits = np.array([[0, 50], [125, 255], [30, 160]])
+        self.hsvlimits = np.array([[9, 25], [104, 255], [156, 255]])
 
         # Create a publisher for the processed (debugging) images.
         # Store up to three images, just in case.
         self.pubrgb = self.create_publisher(Image, name+'/image_raw', 3)
         self.pubbin = self.create_publisher(Image, name+'/binary',    3)
+        self.circ_point = self.create_publisher(Point, "/Circle", 3)
+        self.rect_pose = self.create_publisher(Pose, "/Rectangle", 3)
 
         # Set up the OpenCV bridge.
         self.bridge = cv_bridge.CvBridge()
@@ -61,7 +64,7 @@ class DetectorNode(Node):
         # No particular cleanup, just shut down the node.
         self.destroy_node()
 
-    def pixelToWorld(self, image, u, v, x0, y0, annotateImage=True):
+    def pixelToWorld(self, image, u, v, x0, y0, markerCorners, markerIds, annotateImage=True):
             '''
             Convert the (u,v) pixel position into (x,y) world coordinates
             Inputs:
@@ -79,8 +82,6 @@ class DetectorNode(Node):
             '''
 
             # Detect the Aruco markers (using the 4X4 dictionary).
-            markerCorners, markerIds, _ = cv2.aruco.detectMarkers(
-                image, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50))
             if annotateImage:
                 cv2.aruco.drawDetectedMarkers(image, markerCorners, markerIds)
 
@@ -111,11 +112,12 @@ class DetectorNode(Node):
 
 
             # Mark the detected coordinates.
-            if annotateImage:
-                # cv2.circle(image, (u, v), 5, (0, 0, 0), -1)
-                s = "(%7.4f, %7.4f)" % (xyObj[0], xyObj[1])
-                cv2.putText(image, s, (u-80, v-8), cv2.FONT_HERSHEY_SIMPLEX,
-                            0.5, (255, 0, 0), 2, cv2.LINE_AA)
+            # if annotateImage:
+            #     if len(markerIds) == 4:
+            #     # cv2.circle(image, (u, v), 5, (0, 0, 0), -1)
+            #         s = "(%7.4f, %7.4f)" % (xyObj[0], xyObj[1])
+            #         cv2.putText(image, s, (u-80, v-8), cv2.FONT_HERSHEY_SIMPLEX,
+            #                     0.5, (255, 0, 0), 2, cv2.LINE_AA)
 
             return xyObj
     
@@ -151,20 +153,13 @@ class DetectorNode(Node):
 
         # Assume the center of marker sheet is at the world origin.
         x0 = 0.0
-        y0 = 0.0
+        y0 = 0.314
 
-        # Convert the center of the image into world coordinates.
-        xyCenter = self.pixelToWorld(frame, uc, vc, x0, y0)
+        rectCenter = None
+        discCenter = None
 
         # Mark the center of the image.
         cv2.circle(frame, (uc, vc), 5, self.red, -1)
-
-        # Report the mapping.
-        if xyCenter is None:
-            self.get_logger().info("Unable to execute mapping")
-        else:
-            (xc, yc) = xyCenter
-            self.get_logger().info("Camera pointed at (%f,%f)" % (xc, yc))
 
 
         # Help to determine the HSV range...
@@ -228,6 +223,42 @@ class DetectorNode(Node):
                 elif circ_ratio > 0.95 or circ_ratio < 1.05:
                     circles.append(cnt)
  
+        # if rectCenter == None:
+        #     self.get_logger().info(
+        #     "rect is none")
+
+        # if discCenter is None:
+        #     self.get_logger().info(
+        #     "disc is none")
+                    
+        markerCorners, markerIds, _ = cv2.aruco.detectMarkers(
+                frame, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50))
+
+        if len(circles) > 0:
+            largest_circle = max(circles, key=cv2.contourArea)
+            ((ur, vr), radius) = cv2.minEnclosingCircle(largest_circle)
+            ur     = int(ur)
+            vr     = int(vr)
+            radius = int(radius)
+            #self.get_logger().info(str(ur))
+            #self.get_logger().info(str(vr))
+
+            # Draw the circle (yellow) and centroid (red) on the
+            # original image.
+            cv2.circle(frame, (ur, vr), int(radius), self.blue,  2)
+            cv2.circle(frame, (ur, vr), 5,           self.red,    -1)
+
+            # Convert the center of the image into world coordinates.
+            discCenter = self.pixelToWorld(frame, ur, vr, x0, y0, markerCorners, markerIds)
+
+            # Report.
+            # if discCenter is not None:
+            #     self.get_logger().info(
+            #         "Found Disk enclosed by radius %d about (%d,%d)" %
+            #         (radius, discCenter[0], discCenter[1]))
+            # else:
+            #     self.get_logger().info("Problem")
+
         if len(rectangles) > 0:
             largest_rotated_rectangle = max(rectangles, key=cv2.contourArea)
             rotatedrectangle = cv2.minAreaRect(largest_rotated_rectangle)
@@ -237,28 +268,50 @@ class DetectorNode(Node):
             box = np.int0(cv2.boxPoints(rotatedrectangle))
             cv2.drawContours(frame, [box], 0, self.red, 2)
             # v2.putText(img, 'Rectangle', (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            self.get_logger().info(
-                        "Found Rectangle enclosed by width %d and height %d about (%d,%d)" %
-                        (wm, hm, um, vm))
 
-        if len(circles) > 0:
-            largest_circle = max(circles, key=cv2.contourArea)
-            ((ur, vr), radius) = cv2.minEnclosingCircle(largest_circle)
-            ur     = int(ur)
-            vr     = int(vr)
-            radius = int(radius)
+            # self.get_logger().info(str(um))
+            # self.get_logger().info(str(vm))
+            rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds)
+            # if rectCenter is not None:
+            #     self.get_logger().info(
+            #                 "Found Rectangle enclosed by width %d and height %d about (%d,%d)" %
+            #                 (wm, hm, rectCenter[0], rectCenter[1]))
+    
+    
+        # Report the mapping.
+        if rectCenter is None:
+            # self.get_logger().info("Unable to execute rectangle mapping")
+            pass
+        else:
+            (xc, yc) = rectCenter
+            self.get_logger().info("Camera pointed at rectangle of (%f,%f)" % (xc, yc))
+            pose_msg = Pose()
+            rect_pt = Point()
+            rect_angle = Quaternion()
+            rect_pt.x = float(xc)
+            rect_pt.y = float(yc)
+            rect_pt.z = 0.0
+            rect_angle.x = 0.0
+            rect_angle.y = 0.0
+            rect_angle.z = np.sin(angle / 2)
+            rect_angle.w = np.cos(angle / 2)
+            pose_msg.position = rect_pt
+            pose_msg.orientation = rect_angle
+            self.rect_pose.publish(pose_msg)
 
-            # Draw the circle (yellow) and centroid (red) on the
-            # original image.
-            cv2.circle(frame, (ur, vr), int(radius), self.yellow,  2)
-            cv2.circle(frame, (ur, vr), 5,           self.red,    -1)
 
-            # Report.
-            self.get_logger().info(
-                "Found Disk enclosed by radius %d about (%d,%d)" %
-                (radius, ur, vr))
+        if discCenter is None:
+            # self.get_logger().info("Unable to execute disc mapping")
+            pass
+        else:
+            (xc, yc) = discCenter
+            self.get_logger().info("Camera pointed at disc of (%f,%f)" % (xc, yc))
+            pt_msg = Point()
+            pt_msg.x = float(xc)
+            pt_msg.y = float(yc)
+            pt_msg.z = 0.0
+            self.circ_point.publish(pt_msg)
 
-                    
         # Convert the frame back into a ROS image and republish.
         self.pubrgb.publish(self.bridge.cv2_to_imgmsg(frame, "rgb8"))
 

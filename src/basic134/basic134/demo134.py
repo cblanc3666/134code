@@ -9,7 +9,7 @@ import rclpy
 
 from rclpy.node                 import Node
 from sensor_msgs.msg            import JointState
-from geometry_msgs.msg          import Point
+from geometry_msgs.msg          import Point, Pose, Quaternion
 
 from basic134.Segments          import GotoCubic
 from basic134.KinematicChain    import KinematicChain
@@ -92,6 +92,15 @@ class DemoNode(Node):
 
         self.fbksub = self.create_subscription(
             Point, '/point', self.recvpoint, 10)
+        
+        #Create subscriber to circle message
+        self.circle_pos = None
+        self.fbkcirc = self.create_subscription(Point, '/Circle', self.recvCircle, 10)
+
+        #Create subscriber to rectangle message
+        self.rect_pos = None
+        self.fbkrect = self.create_subscription(Pose, '/Rectangle', self.recvRect, 10)
+
 
         # Report.
         self.get_logger().info("Running %s" % name)
@@ -128,6 +137,26 @@ class DemoNode(Node):
 
         # Return the values.
         return self.grabpos
+    
+    def recvRect(self, rec_Rect):
+        x = rec_Rect.position.x
+        y = rec_Rect.position.y
+        z = rec_Rect.position.z
+
+        theta = 2 * np.arcsin(rec_Rect.orientation.z)
+
+        self.rect_pos = [x, y, z, theta]
+        if x is not None:
+            self.get_logger().info("Rectangle" + str(self.rect_pos))
+
+    def recvCircle(self, rec_Circle):
+        x = rec_Circle.x
+        y = rec_Circle.y
+        z = rec_Circle.z
+
+        self.circle_pos = [x, y, z]
+        if x is not None:
+            self.get_logger().info("Circle" + str(self.circle_pos))
 
 
     # Receive feedback - called repeatedly by incoming messages.

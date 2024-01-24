@@ -30,12 +30,23 @@ def generate_launch_description():
         executable = 'usb_cam_node_exe',
         namespace  = 'usb_cam',
         output     = 'screen',
-        parameters = [{'camera_name':  'logitech'},
-                      {'video_device': '/dev/video0'},
-                      {'pixel_format': 'yuyv2rgb'},
-                      {'image_width':  640},
-                      {'image_height': 480},
-                      {'framerate':    15.0}])
+        parameters = [{'camera_name':         'logitech'},
+                      {'video_device':        '/dev/video0'},
+                      {'pixel_format':        'yuyv2rgb'},
+                      {'image_width':         640},
+                      {'image_height':        480},
+                      {'framerate':           15.0},
+                      {'brightness':          -1},
+                      {'contrast':            -1},
+                      {'saturation':          -1},
+                      {'sharpness':           -1},
+                      {'gain':                -1},
+                      {'auto_white_balance':  False},
+                      {'white_balance':       4000},
+                      {'autoexposure':        False},
+                      {'exposure':            250},
+                      {'autofocus':           True},
+                      {'focus':               -1}])
 
     # Configure the demo detector node
     node_demodetector = Node(
