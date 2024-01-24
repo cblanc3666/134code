@@ -1,1 +1,0 @@
-/home/robot/134code/src/detectors/launch/realsense_pointcloud.launch.py

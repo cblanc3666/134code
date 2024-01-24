@@ -1,3 +1,0 @@
-[console_scripts]
-demo134 = demo134.demo134:main
-

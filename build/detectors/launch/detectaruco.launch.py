@@ -1,1 +1,0 @@
-/home/robot/134code/src/detectors/launch/detectaruco.launch.py
