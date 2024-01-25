@@ -8,6 +8,8 @@
 import numpy as np
 import rclpy
 
+from enum import Enum
+
 from rclpy.node                 import Node
 from sensor_msgs.msg            import JointState
 from geometry_msgs.msg          import Point, Pose, Quaternion
@@ -25,16 +27,29 @@ from std_msgs.msg               import Float32
 RATE = 100.0            # transmit rate, in Hertz
 gamma = 0.1
 
-# Target position for each spline segment
-END_POS = [[0.0, 0.0, 0.0],
-           [0.0, 0.0, -np.pi/2]]
+#   States the arm can be in
+class ArmState(Enum):
+    START = 1   # initial state
+    GOTO  = 2   # moving to a commanded point, either from IDLE_POS or a 
+                # previously commanded point
+    RETURN = 3  # moving back to IDLE_POS, either because no other point has 
+                # been commanded or because the next point is too far from the
+                # previous point
+                # Returning ALWAYS uses a joint space spline
+    IDLE = 4    # nothing commanded, arm is at IDLE_POS
+    HOLD = 5    # holding at a commanded point, preparing to return or move to
+                # next point
+
+
+# Holding position over the table
+IDLE_POS = [0.0, 0.0, -np.pi/2]
 
 # Initial joint velocity (should be zero)
 QDOT_INIT = [0.0, 0.0, 0.0]
 
 # Duration for each spline segment
 # DURATIONS[3] = Hold time at commanded point
-DURATIONS = [15.0, 3.0, 6.0, 3.0, 6.0]
+DURATIONS = [5.0, 3.0, 6.0, 3.0, 6.0] # TODO refactor this
 
 #
 #   DEMO Node Class
@@ -43,8 +58,15 @@ class DemoNode(Node):
     position = None
     q_des = None # desired joint positions 
     qdot_des = None # desired joint velocities
-    start_time = 0
-    msg_time = -sum(DURATIONS)
+    start_time = 0 # time of initialization
+    seg_start_time = 0  # logs the time (relative to start_time) that last segment started
+                        # or, if state is IDLE, time that it has been idle
+    arm_state = ArmState.START
+    
+    # first segment splines from initial position to zero shoulder
+    # second segment splines from any point to hold position
+    # third segment splines from any point to any point
+    # fourth segment splines from any point to hold position TODO refactor this out
     segments = [None, None, None, None]
 
     grav = 1.65
@@ -68,7 +90,7 @@ class DemoNode(Node):
 
         # Set up first spline (only shoulder is moving)
         self.segments[0] = GotoCubic(np.array(self.position0), 
-                                     np.array([self.position0[0], END_POS[0][1], self.position0[2]]),
+                                     np.array([self.position0[0], IDLE_POS[1], self.position0[2]]),
                                      DURATIONS[0])
 
         # Create a message and publisher to send the joint commands.
@@ -171,19 +193,18 @@ class DemoNode(Node):
         y = pointmsg.y
         z = pointmsg.z
 
-        time = self.get_clock().now().nanoseconds * 1e-9 - self.start_time
-
-        if (time - self.msg_time < sum(DURATIONS[2:5])):
+        if self.arm_state != ArmState.IDLE: # TODO allow commands to be sent while currently running
             self.get_logger().info("Already commanded!")
             return
+
+        self.seg_start_time = self.get_clock().now().nanoseconds * 1e-9 - self.start_time
+        self.arm_state = ArmState.GOTO
         
-        self.msg_time = self.get_clock().now().nanoseconds * 1e-9 - self.start_time
-        
-        # Go to command position JOINT SPACE
-        (task_wait_pos, _, _, _) = self.chain.fkin(np.reshape(END_POS[1], (-1, 1)))
-        self.segments[2] = GotoCubic(task_wait_pos, np.reshape([x, y, z], (-1, 1)), DURATIONS[2])
+        # Go to command position JOINT SPACE TODO refactor this
+        (idle_pos, _, _, _) = self.chain.fkin(np.reshape(IDLE_POS, (-1, 1)))
+        self.segments[2] = GotoCubic(idle_pos, np.reshape([x, y, z], (-1, 1)), DURATIONS[2])
         # Return back
-        self.segments[3] = GotoCubic(np.reshape([x, y, z], (-1, 1)), task_wait_pos, DURATIONS[4])
+        self.segments[3] = GotoCubic(np.reshape([x, y, z], (-1, 1)), idle_pos, DURATIONS[4])
 
         # Report.
         self.get_logger().info("Going to point %r, %r, %r" % (x,y,z))
@@ -197,6 +218,8 @@ class DemoNode(Node):
         # Time since start
         time = self.get_clock().now().nanoseconds * 1e-9 - self.start_time
         
+        self.get_logger().info("Time: %r" % time)
+
         if self.position0 is None or \
             self.position is None or \
             self.q_des is None: # no start position or desired position yet
@@ -207,79 +230,99 @@ class DemoNode(Node):
         self.cmdmsg.velocity     = [0.0, 0.0, 0.0]
         self.cmdmsg.effort       = [0.0, self.grav * -np.sin(self.position[1]), 0.0]
 
+        # Code for turning off effort to test gravity
         # nan = float("nan")
         # self.cmdmsg.position = (nan, nan, nan)
         # self.cmdmsg.velocity = (nan, nan, nan)
         # self.cmdpub.publish(self.cmdmsg)
         # return
 
-        if time < DURATIONS[0]:
+        pd = None
+        vd = None
+
+        if self.arm_state == ArmState.START:
             # Evaluate p and v at time using the first cubic spline
-            (p, v) = self.segments[0].evaluate(time)
+            (q, qdot) = self.segments[0].evaluate(time)
 
-            self.q_des = list(p)
-            self.qdot_des = list(v)
+            self.q_des = list(q)
+            self.qdot_des = list(qdot)
 
-            # Sets up next spline since base and elbow joints start at arbitrary positions
-            self.segments[1] = GotoCubic(np.array(p), np.array(END_POS[1]), DURATIONS[1])
+            if time >= DURATIONS[0]: # once done, moving to IDLE_POS
+                self.arm_state = ArmState.RETURN
+                self.seg_start_time = time
+                
+                # Sets up next spline since base and elbow joints start at arbitrary positions
+                self.segments[1] = GotoCubic(np.array(self.q_des), np.array(IDLE_POS), DURATIONS[1])
             
-        elif time < sum(DURATIONS[0:2]):
-            #Segement 2: Moving the base and elbow to waiting position
-            (p, v) = self.segments[1].evaluate(time - DURATIONS[0])
+        elif self.arm_state == ArmState.RETURN:
+            # Moving the base and elbow to waiting position
+            (q, qdot) = self.segments[1].evaluate(time - self.seg_start_time)
             
-            self.q_des = list(p)
-            self.qdot_des = list(v)
+            self.q_des = list(q)
+            self.qdot_des = list(qdot)
 
-            # indicates that 
-            self.msg_time = time - sum(DURATIONS)
+            if time - self.seg_start_time >= DURATIONS[1]:
+                self.arm_state = ArmState.IDLE
+                self.seg_start_time = time
 
-            (wait_pos, _, _, _) = self.chain.fkin(np.reshape(END_POS[1], (-1, 1)))
-            ending_pos = wait_pos + np.reshape([0.0, -0.5, 0.2], (-1, 1))
+        elif self.arm_state == ArmState.HOLD: 
+            # Waiting at commanded point - end of previous spline
+            (pd, vd) = self.segments[2].evaluate(DURATIONS[2])
+            
+            if time - self.seg_start_time >= DURATIONS[3]:
+                self.arm_state = ArmState.RETURN
+                self.seg_start_time = time
+                self.segments[1] = GotoCubic(np.array(self.q_des), np.array(IDLE_POS), DURATIONS[1])
+
+        elif self.arm_state == ArmState.GOTO:
+            # Moving to commanded point
+            (pd, vd) = self.segments[2].evaluate(time - self.seg_start_time)
+
+            if time - self.seg_start_time >= DURATIONS[2]:
+                self.arm_state = ArmState.HOLD
+                self.seg_start_time = time
+
+        elif self.arm_state == ArmState.IDLE:
+            q = IDLE_POS
+            qdot = [0.0, 0.0, 0.0]
+            self.q_des = list(q)
+            self.qdot_des = list(qdot)
 
         else:
+            self.get_logger().info("Arm in unknown state")
+            self.arm_state = ArmState.RETURN
+            self.seg_start_time = time
+            self.segments[1] = GotoCubic(np.array(self.q_des), np.array(IDLE_POS), DURATIONS[1])
+
+
+        if pd is not None: # we are using task space spline
             # run fkin on previous qdes
             (ptip_des, _, Jv, _) = self.chain.fkin(np.reshape(self.q_des, (-1, 1)))
-
-            if time - self.msg_time < DURATIONS[2]:
-                (pd, vd) = self.segments[2].evaluate(time - self.msg_time)
-            elif time - self.msg_time < sum(DURATIONS[2:4]):
-                (pd, vd) = self.segments[2].evaluate(DURATIONS[2])
-            elif time - self.msg_time < sum(DURATIONS[2:5]):
-                (pd, vd) = self.segments[3].evaluate(time - self.msg_time - sum(DURATIONS[2:4]))
-            else:
-                p = END_POS[1]
-                v = [0.0, 0.0, 0.0]
-                self.q_des = list(p)
-                self.qdot_des = list(v)
-                
-                (pd, vd) = (None, None)
             
-            if pd is not None: # we are using spline
-                vr   = vd + self.lam * ep(pd, ptip_des)
+            vr   = vd + self.lam * ep(pd, ptip_des)
 
-                Jinv = Jv.T @ np.linalg.pinv(Jv @ Jv.T + gamma**2 * np.eye(3))
-                qdot = Jinv @ vr ## ikin result
+            Jinv = Jv.T @ np.linalg.pinv(Jv @ Jv.T + gamma**2 * np.eye(3))
+            qdot = Jinv @ vr ## ikin result
 
-                # old version that mixed ikin feedback loop with motor fdbk loop
-                # q = np.reshape(self.position, (-1, 1)) + qdot / RATE 
-                
-                # new version that makes q depend solely on qdot instead of 
-                # current position as well
-                q = np.reshape(self.q_des, (-1, 1)) + qdot / RATE
+            # old version that mixed ikin feedback loop with motor fdbk loop
+            # q = np.reshape(self.position, (-1, 1)) + qdot / RATE 
+            
+            # new version that makes q depend solely on qdot instead of 
+            # current position as well
+            q = np.reshape(self.q_des, (-1, 1)) + qdot / RATE
 
-                self.q_des = list(q.flatten())
-                self.qdot_des = list(qdot.flatten())
+            self.q_des = list(q.flatten())
+            self.qdot_des = list(qdot.flatten())
 
-                # self.get_logger().info("cmdpos: %r" % self.cmdmsg.position)
-                # self.get_logger().info("cmdvel: %r" % self.cmdmsg.velocity)
-                # self.get_logger().info("desired vel: %r" % qdot)
-                self.get_logger().info("Error: %r" % ep(pd, ptip_des))
+            # self.get_logger().info("cmdpos: %r" % self.cmdmsg.position)
+            # self.get_logger().info("cmdvel: %r" % self.cmdmsg.velocity)
+            # self.get_logger().info("desired vel: %r" % qdot)
+            self.get_logger().info("Error: %r" % ep(pd, ptip_des))
 
         # print(np.reshape(self.position, (-1, 1)), "\n")
 
         # print(qdot.flatten(), "\n")
         # print(self.cmdmsg.position)
-        # print(time - self.msg_time)
 
         self.cmdmsg.position = self.q_des
         self.cmdmsg.velocity = self.qdot_des
