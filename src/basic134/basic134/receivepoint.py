@@ -51,6 +51,10 @@ QDOT_INIT = [0.0, 0.0, 0.0]
 # DURATIONS[3] = Hold time at commanded point
 DURATIONS = [5.0, 3.0, 6.0, 3.0, 6.0] # TODO refactor this
 
+# magnitude of the joint space divergence (||q - q_des||) that constitutes a 
+# collision
+COLLISION_THRESHOLD = 0.05 
+
 #
 #   DEMO Node Class
 #
@@ -181,6 +185,8 @@ class DemoNode(Node):
         if x is not None:
             self.get_logger().info("Circle" + str(self.circle_pos))
 
+        self.gotopoint(x, y, z)
+
 
     # Receive feedback - called repeatedly by incoming messages.
     def recvfbk(self, fbkmsg):
@@ -192,7 +198,10 @@ class DemoNode(Node):
         x = pointmsg.x
         y = pointmsg.y
         z = pointmsg.z
+        
+        self.gotopoint(x, y, z)
 
+    def gotopoint(self, x, y, z):
         if self.arm_state != ArmState.IDLE: # TODO allow commands to be sent while currently running
             self.get_logger().info("Already commanded!")
             return
@@ -217,8 +226,6 @@ class DemoNode(Node):
     def sendcmd(self):
         # Time since start
         time = self.get_clock().now().nanoseconds * 1e-9 - self.start_time
-        
-        self.get_logger().info("Time: %r" % time)
 
         if self.position0 is None or \
             self.position is None or \
@@ -236,6 +243,18 @@ class DemoNode(Node):
         # self.cmdmsg.velocity = (nan, nan, nan)
         # self.cmdpub.publish(self.cmdmsg)
         # return
+
+        # self.get_logger().info("position: %r" % self.position)
+        # self.get_logger().info("qdes: %r" % self.q_des)
+
+        # collision checking
+        if np.linalg.norm(ep(np.array(self.q_des), self.position)) > COLLISION_THRESHOLD:
+            (ptip, _, _, _) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
+            
+            # stay put, then try to go home
+            self.segments[2] = GotoCubic(ptip, ptip, DURATIONS[2])
+            self.arm_state = ArmState.HOLD
+            self.seg_start_time = time
 
         pd = None
         vd = None

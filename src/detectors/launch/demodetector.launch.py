@@ -7,6 +7,7 @@ Please copy the relevant pieces.
 
 import os
 import xacro
+# from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory as pkgdir
 
@@ -14,6 +15,7 @@ from launch                            import LaunchDescription
 from launch.actions                    import Shutdown
 from launch_ros.actions                import Node
 
+# from camera_config import CameraConfig, USB_CAM_DIR
 
 #
 # Generate the Launch Description
@@ -30,6 +32,7 @@ def generate_launch_description():
         executable = 'usb_cam_node_exe',
         namespace  = 'usb_cam',
         output     = 'screen',
+        # param_path=Path(USB_CAM_DIR, 'config', 'params_1.yaml'),
         parameters = [{'camera_name':         'logitech'},
                       {'video_device':        '/dev/video0'},
                       {'pixel_format':        'yuyv2rgb'},
@@ -44,9 +47,10 @@ def generate_launch_description():
                       {'auto_white_balance':  False},
                       {'white_balance':       4000},
                       {'autoexposure':        False},
-                      {'exposure':            250},
+                      {'exposure':            100},
                       {'autofocus':           True},
-                      {'focus':               -1}])
+                      {'focus':               -1}]
+    )
 
     # Configure the demo detector node
     node_demodetector = Node(

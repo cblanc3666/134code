@@ -169,8 +169,8 @@ class DetectorNode(Node):
             frame = cv2.line(frame, (0,vc), (W-1,vc), self.white, 1)
 
             # Report the center HSV values.  Note the row comes first.
-            self.get_logger().info(
-                "HSV = (%3d, %3d, %3d)" % tuple(hsv[vc, uc]))
+            # self.get_logger().info(
+            #     "HSV = (%3d, %3d, %3d)" % tuple(hsv[vc, uc]))
 
         
         # Threshold in Hmin/max, Smin/max, Vmin/max
@@ -201,8 +201,8 @@ class DetectorNode(Node):
                 # comparing min rectangle and contour areas
                 # not used rn
                 rotated_rect = cv2.minAreaRect(cnt)
-                rect_area = rotated_rect[1][0] * rotated_rect[1][1]
-                rect_ratio = cnt_area /rect_area
+                # rect_area = rotated_rect[1][0] * rotated_rect[1][1]
+                # rect_ratio = cnt_area /rect_area
                 
                 # comparing min circles and contour areas
                 (x, y), radius = cv2.minEnclosingCircle(cnt)
@@ -245,12 +245,13 @@ class DetectorNode(Node):
 
             # Draw the circle (yellow) and centroid (red) on the
             # original image.
-            cv2.circle(frame, (ur, vr), int(radius), self.blue,  2)
+            cv2.circle(frame, (ur, vr), int(radius), self.yellow,  2)
             cv2.circle(frame, (ur, vr), 5,           self.red,    -1)
 
             # Convert the center of the image into world coordinates.
             discCenter = self.pixelToWorld(frame, ur, vr, x0, y0, markerCorners, markerIds)
 
+        
             # Report.
             # if discCenter is not None:
             #     self.get_logger().info(
@@ -267,7 +268,6 @@ class DetectorNode(Node):
             # Draw the largest rotated rectangle on the original image
             box = np.int0(cv2.boxPoints(rotatedrectangle))
             cv2.drawContours(frame, [box], 0, self.red, 2)
-            # v2.putText(img, 'Rectangle', (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
             # self.get_logger().info(str(um))
             # self.get_logger().info(str(vm))
