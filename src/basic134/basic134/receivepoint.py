@@ -49,7 +49,7 @@ QDOT_INIT = [0.0, 0.0, 0.0]
 
 # Duration for each spline segment
 # DURATIONS[3] = Hold time at commanded point
-DURATIONS = [5.0, 3.0, 6.0, 3.0, 6.0] # TODO refactor this
+DURATIONS = [5.0, 5.0, 6.0, 3.0, 6.0] # TODO refactor this
 
 # magnitude of the joint space divergence (||q - q_des||) that constitutes a 
 # collision
@@ -66,6 +66,8 @@ class DemoNode(Node):
     seg_start_time = 0  # logs the time (relative to start_time) that last segment started
                         # or, if state is IDLE, time that it has been idle
     arm_state = ArmState.START
+    goto_next = False # when True, can go from one commanded point to another
+                        # instead of returning to IDLE_POS
     
     # first segment splines from initial position to zero shoulder
     # second segment splines from any point to hold position
@@ -176,6 +178,16 @@ class DemoNode(Node):
         if x is not None:
             self.get_logger().info("Rectangle" + str(self.rect_pos))
 
+            [x1, y1, z1] = [x + 0.05*np.cos(theta), y + 0.05*np.sin(theta), z]
+            [x2, y2, z2] = [x - 0.05*np.cos(theta), y - 0.05*np.sin(theta), z]
+
+            # TODO refactor this in a better way
+            self.segments[3] = GotoCubic(np.reshape([x1, y1, z1], (-1, 1)), np.reshape([x2, y2, z2], (-1, 1)), DURATIONS[2])
+
+            if self.arm_state == ArmState.IDLE:
+                self.goto_next  = True
+            self.gotopoint(x1, y1, z1)
+
     def recvCircle(self, rec_Circle):
         x = rec_Circle.x
         y = rec_Circle.y
@@ -185,7 +197,7 @@ class DemoNode(Node):
         if x is not None:
             self.get_logger().info("Circle" + str(self.circle_pos))
 
-        self.gotopoint(x, y, z)
+            self.gotopoint(x, y, z)
 
 
     # Receive feedback - called repeatedly by incoming messages.
@@ -202,7 +214,7 @@ class DemoNode(Node):
         self.gotopoint(x, y, z)
 
     def gotopoint(self, x, y, z):
-        if self.arm_state != ArmState.IDLE: # TODO allow commands to be sent while currently running
+        if self.arm_state != ArmState.IDLE: 
             self.get_logger().info("Already commanded!")
             return
 
@@ -212,8 +224,6 @@ class DemoNode(Node):
         # Go to command position JOINT SPACE TODO refactor this
         (idle_pos, _, _, _) = self.chain.fkin(np.reshape(IDLE_POS, (-1, 1)))
         self.segments[2] = GotoCubic(idle_pos, np.reshape([x, y, z], (-1, 1)), DURATIONS[2])
-        # Return back
-        self.segments[3] = GotoCubic(np.reshape([x, y, z], (-1, 1)), idle_pos, DURATIONS[4])
 
         # Report.
         self.get_logger().info("Going to point %r, %r, %r" % (x,y,z))
@@ -224,6 +234,8 @@ class DemoNode(Node):
 
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):
+        
+        self.get_logger().info("Current state %r" % self.arm_state)
         # Time since start
         time = self.get_clock().now().nanoseconds * 1e-9 - self.start_time
 
@@ -255,6 +267,8 @@ class DemoNode(Node):
             self.segments[2] = GotoCubic(ptip, ptip, DURATIONS[2])
             self.arm_state = ArmState.HOLD
             self.seg_start_time = time
+
+            self.get_logger().info("COLLISION DETECTED")
 
         pd = None
         vd = None
@@ -289,9 +303,14 @@ class DemoNode(Node):
             (pd, vd) = self.segments[2].evaluate(DURATIONS[2])
             
             if time - self.seg_start_time >= DURATIONS[3]:
-                self.arm_state = ArmState.RETURN
                 self.seg_start_time = time
-                self.segments[1] = GotoCubic(np.array(self.q_des), np.array(IDLE_POS), DURATIONS[1])
+                if self.goto_next == True:
+                    self.arm_state = ArmState.GOTO
+                    self.segments[2] = self.segments[3]
+                    self.goto_next = False
+                else:
+                    self.arm_state = ArmState.RETURN
+                    self.segments[1] = GotoCubic(np.array(self.q_des), np.array(IDLE_POS), DURATIONS[1])
 
         elif self.arm_state == ArmState.GOTO:
             # Moving to commanded point
@@ -336,7 +355,7 @@ class DemoNode(Node):
             # self.get_logger().info("cmdpos: %r" % self.cmdmsg.position)
             # self.get_logger().info("cmdvel: %r" % self.cmdmsg.velocity)
             # self.get_logger().info("desired vel: %r" % qdot)
-            self.get_logger().info("Error: %r" % ep(pd, ptip_des))
+            # self.get_logger().info("Error: %r" % ep(pd, ptip_des))
 
         # print(np.reshape(self.position, (-1, 1)), "\n")
 

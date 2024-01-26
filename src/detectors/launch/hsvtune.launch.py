@@ -30,24 +30,23 @@ def generate_launch_description():
         executable = 'usb_cam_node_exe',
         namespace  = 'usb_cam',
         output     = 'screen',
-        param_path=Path(USB_CAM_DIR, 'config', 'params_1.yaml')
-        # parameters = [{'camera_name':         'logitech'},
-        #               {'video_device':        '/dev/video0'},
-        #               {'pixel_format':        'yuyv2rgb'},
-        #               {'image_width':         640},
-        #               {'image_height':        480},
-        #               {'framerate':           15.0},
-        #               {'brightness':          -1},
-        #               {'contrast':            -1},
-        #               {'saturation':          -1},
-        #               {'sharpness':           -1},
-        #               {'gain':                -1},
-        #               {'auto_white_balance':  False},
-        #               {'white_balance':       4000},
-        #               {'autoexposure':        False},
-        #               {'exposure':            250},
-        #               {'autofocus':           True},
-        #               {'focus':               -1}]
+        parameters = [{'camera_name':         'logitech'},
+                      {'video_device':        '/dev/video0'},
+                      {'pixel_format':        'yuyv2rgb'},
+                      {'image_width':         640},
+                      {'image_height':        480},
+                      {'framerate':           15.0},
+                      {'brightness':          175}, # -1
+                      {'contrast':            150}, # -1
+                      {'saturation':          128}, # -1
+                      {'sharpness':           150}, # -1
+                      {'gain':                0}, # -1
+                      {'auto_white_balance':  False},
+                      {'white_balance':       4000},
+                      {'autoexposure':        False},
+                      {'exposure':            100},
+                      {'autofocus':           True},
+                      {'focus':               -1}]
                       )
 
     # Configure the HSV tuning utility node

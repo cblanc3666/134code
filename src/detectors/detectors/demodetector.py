@@ -38,7 +38,7 @@ class DetectorNode(Node):
         super().__init__(name)
 
         # Thresholds in Hmin/max, Smin/max, Vmin/max
-        self.hsvlimits = np.array([[9, 25], [104, 255], [156, 255]])
+        self.hsvlimits = np.array([[0, 15], [100, 255], [100, 255]])
 
         # Create a publisher for the processed (debugging) images.
         # Store up to three images, just in case.
@@ -201,8 +201,8 @@ class DetectorNode(Node):
                 # comparing min rectangle and contour areas
                 # not used rn
                 rotated_rect = cv2.minAreaRect(cnt)
-                # rect_area = rotated_rect[1][0] * rotated_rect[1][1]
-                # rect_ratio = cnt_area /rect_area
+                rect_area = rotated_rect[1][0] * rotated_rect[1][1]
+                rect_ratio = cnt_area /rect_area
                 
                 # comparing min circles and contour areas
                 (x, y), radius = cv2.minEnclosingCircle(cnt)
@@ -220,6 +220,8 @@ class DetectorNode(Node):
 
                 if aspect_ratio > 1.1:
                     rectangles.append(cnt)
+                    # if rect_ratio > 0.95 or rect_ratio < 1.05:
+                    #     rectangles.append(cnt)
                 elif circ_ratio > 0.95 or circ_ratio < 1.05:
                     circles.append(cnt)
  
