@@ -42,8 +42,8 @@ def generate_launch_description():
                       {'brightness':          175}, # -1
                       {'contrast':            150}, # -1
                       {'saturation':          128}, # -1
-                      {'sharpness':           150}, # -1
-                      {'gain':                0}, # -1
+                      {'sharpness':           200}, # -1
+                      {'gain':                1}, # -1
                       {'auto_white_balance':  False},
                       {'white_balance':       4000},
                       {'autoexposure':        False},

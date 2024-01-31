@@ -38,7 +38,7 @@ class DetectorNode(Node):
         super().__init__(name)
 
         # Thresholds in Hmin/max, Smin/max, Vmin/max
-        self.hsvlimits = np.array([[0, 15], [100, 255], [100, 255]])
+        self.hsvlimits = np.array([[9, 15], [110, 255], [120, 255]])
 
         # Create a publisher for the processed (debugging) images.
         # Store up to three images, just in case.
@@ -64,7 +64,7 @@ class DetectorNode(Node):
         # No particular cleanup, just shut down the node.
         self.destroy_node()
 
-    def pixelToWorld(self, image, u, v, x0, y0, markerCorners, markerIds, annotateImage=True):
+    def pixelToWorld(self, image, u, v, x0, y0, markerCorners, markerIds, annotateImage=True, angle = None, w = None, h = None):
             '''
             Convert the (u,v) pixel position into (x,y) world coordinates
             Inputs:
@@ -110,14 +110,28 @@ class DetectorNode(Node):
             uvObj = np.float32([u, v])
             xyObj = cv2.perspectiveTransform(uvObj.reshape(1,1,2), M).reshape(2)
 
+            pt1 = [0, 0]
+            if angle is not None:
+                pt1[0] = u + min(h, w) / 2 * np.cos(angle)
+                pt1[1] = v + max(h, w) / 2 * np.sin(angle)
+
+
+            pt1Obj = np.float32(pt1)
+
+            world_pt1Obj = cv2.perspectiveTransform(pt1Obj.reshape(1,1,2), M).reshape(2)
 
             # Mark the detected coordinates.
-            # if annotateImage:
-            #     if len(markerIds) == 4:
-            #     # cv2.circle(image, (u, v), 5, (0, 0, 0), -1)
-            #         s = "(%7.4f, %7.4f)" % (xyObj[0], xyObj[1])
-            #         cv2.putText(image, s, (u-80, v-8), cv2.FONT_HERSHEY_SIMPLEX,
-            #                     0.5, (255, 0, 0), 2, cv2.LINE_AA)
+            if annotateImage:
+                #.circle(image, (u, v), 5, (0, 0, 0), -1)
+                if angle is not None:
+                    s = "(%7.4f, %7.4f, %7.4f)" % (xyObj[0], xyObj[1], angle)
+                    cv2.putText(image, s, (int(u), int(v)), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.5, (255, 0, 0), 2, cv2.LINE_AA)
+                    #self.get_logger().info(f"Pt: ({world_pt1Obj[0]}, {world_pt1Obj[1]}), Center:({xyObj[0]}, {xyObj[1]})")
+                else:
+                    s = "(%7.4f, %7.4f)" % (xyObj[0], xyObj[1])
+                    cv2.putText(image, s, (int(u), int(v)), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.5, (255, 0, 0), 2, cv2.LINE_AA)
 
             return xyObj
     
@@ -201,6 +215,7 @@ class DetectorNode(Node):
                 # comparing min rectangle and contour areas
                 # not used rn
                 rotated_rect = cv2.minAreaRect(cnt)
+                #rotated_rect = cv2.boxPoints(cnt)
                 rect_area = rotated_rect[1][0] * rotated_rect[1][1]
                 rect_ratio = cnt_area /rect_area
                 
@@ -269,11 +284,27 @@ class DetectorNode(Node):
             
             # Draw the largest rotated rectangle on the original image
             box = np.int0(cv2.boxPoints(rotatedrectangle))
+            #self.get_logger().info(str(box))
             cv2.drawContours(frame, [box], 0, self.red, 2)
+            rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, angle = angle, w = wm, h = hm)
+            world_coords = []
+            for coord in box:
+                transformed_pt = self.pixelToWorld(frame, coord[0], coord[1], x0, y0, markerCorners, markerIds, angle = angle, w = wm, h = hm)
+                world_coords.append(transformed_pt)
 
+            norm1 = 0
+            norm2 = 0
+            if world_coords[0] is not None:
+                norm1 = np.linalg.norm(world_coords[0] - world_coords[1])
+                norm2 = np.linalg.norm(world_coords[1] - world_coords[2])
+            #self.get_logger().info(f"{norm1}, {norm2}")
             # self.get_logger().info(str(um))
             # self.get_logger().info(str(vm))
-            rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds)
+            # if len(markerIds) == 4:
+            #     rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds)
+            #     s = "(%7.4f, %7.4f, %7.4f)" % (rectCenter[0], rectCenter[1], angle)
+            #     cv2.putText(frame, s, (int(rectCenter[0] - 80), int(rectCenter[1] - 8)), cv2.FONT_HERSHEY_SIMPLEX,
+            #                         0.5, (255, 0, 0), 2, cv2.LINE_AA)
             # if rectCenter is not None:
             #     self.get_logger().info(
             #                 "Found Rectangle enclosed by width %d and height %d about (%d,%d)" %
@@ -286,7 +317,21 @@ class DetectorNode(Node):
             pass
         else:
             (xc, yc) = rectCenter
+            world_angle = 0
+            if norm1 <= norm2:
+                delta_y = world_coords[1][1] - world_coords[2][1]
+                delta_x = world_coords[1][0] - world_coords[2][0]
+                world_angle = np.arctan(delta_y / delta_x)
+            else:
+                delta_y = world_coords[0][1] - world_coords[1][1]
+                delta_x = world_coords[0][0] - world_coords[1][0]
+                world_angle = np.arctan(delta_y / delta_x)
+            # pt1 = rectCenter[1]
+            # delta_y = pt1[1] - yc
+            # delta_x = pt1[0] - xc
+            #world_angle = np.arctan2(delta_y, delta_x)
             self.get_logger().info("Camera pointed at rectangle of (%f,%f)" % (xc, yc))
+            self.get_logger().info(f"{world_angle * 180 / np.pi}")
             pose_msg = Pose()
             rect_pt = Point()
             rect_angle = Quaternion()
@@ -295,8 +340,8 @@ class DetectorNode(Node):
             rect_pt.z = 0.0
             rect_angle.x = 0.0
             rect_angle.y = 0.0
-            rect_angle.z = np.sin(angle / 2)
-            rect_angle.w = np.cos(angle / 2)
+            rect_angle.z = float(np.sin(world_angle / 2))
+            rect_angle.w = float(np.cos(world_angle / 2))
             pose_msg.position = rect_pt
             pose_msg.orientation = rect_angle
             self.rect_pose.publish(pose_msg)
