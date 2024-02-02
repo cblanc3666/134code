@@ -39,11 +39,11 @@ def generate_launch_description():
                       {'image_width':         640},
                       {'image_height':        480},
                       {'framerate':           15.0},
-                      {'brightness':          -1},
-                      {'contrast':            -1},
-                      {'saturation':          -1},
-                      {'sharpness':           -1},
-                      {'gain':                -1},
+                      {'brightness':          175}, # -1
+                      {'contrast':            150}, # -1
+                      {'saturation':          128}, # -1
+                      {'sharpness':           200}, # -1
+                      {'gain':                1}, # -1
                       {'auto_white_balance':  False},
                       {'white_balance':       4000},
                       {'autoexposure':        False},
