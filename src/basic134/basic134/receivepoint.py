@@ -267,7 +267,7 @@ class DemoNode(Node):
         # self.get_logger().info("position: %r" % self.position)
         # self.get_logger().info("qdes: %r" % self.q_des)
 
-        # collision checking TODO
+        # collision checking
         if np.linalg.norm(ep(np.array(self.q_des), self.position)) > Q_COLLISION_THRESHOLD or \
            np.linalg.norm(ep(np.array(self.qdot_des), self.qdot)) > QDOT_COLLISION_THRESHOLD:
             
