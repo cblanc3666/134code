@@ -60,8 +60,8 @@ QDOT_INIT = [0.0, 0.0, 0.0]
 
 # magnitude of the joint space divergence (||real - des||) that constitutes a 
 # collision
-Q_COLLISION_THRESHOLD = 50
-QDOT_COLLISION_THRESHOLD = 0.6
+Q_COLLISION_THRESHOLD = 0.07
+QDOT_COLLISION_THRESHOLD = 0.5
 
 #
 #   DEMO Node Class
@@ -77,9 +77,7 @@ class DemoNode(Node):
     seg_start_time = 0  # logs the time (relative to start_time) that last segment started
                         # or, if state is IDLE, time that it has been idle
     arm_state = ArmState.START # initialize state machine
-    collided = False    # indicates whether arm has collided on a GOTO segment
-                        # allows us to collide, pause, try again, and then go
-                        # home if we collide again before reaching goal
+
 
     grav = 1.65
 
@@ -269,37 +267,28 @@ class DemoNode(Node):
         # self.get_logger().info("position: %r" % self.position)
         # self.get_logger().info("qdes: %r" % self.q_des)
 
-        # # collision checking TODO
-        # if np.linalg.norm(ep(np.array(self.q_des), self.position)) > Q_COLLISION_THRESHOLD or \
-        #    np.linalg.norm(ep(np.array(self.qdot_des), self.qdot)) > QDOT_COLLISION_THRESHOLD:
-        #     (ptip, _, _, _) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
+        # collision checking TODO
+        if np.linalg.norm(ep(np.array(self.q_des), self.position)) > Q_COLLISION_THRESHOLD or \
+           np.linalg.norm(ep(np.array(self.qdot_des), self.qdot)) > QDOT_COLLISION_THRESHOLD:
             
-        #     if self.arm_state == ArmState.GOTO and self.collided is False: # only detect collisions while moving
-        #         # stay put, then try to go to original destination
-        #         ArmState.HOLD.segments.append(GotoCubic(ptip, ptip, ArmState.HOLD.duration))
-
-        #         (orig_dest, _) = ArmState.GOTO.segments[0].evaluate(ArmState.GOTO.duration)
-        #         ArmState.GOTO.segments[0] = GotoCubic(ptip, orig_dest, ArmState.GOTO.duration)
-
-        #         self.arm_state = ArmState.HOLD
-        #         self.seg_start_time = time
-        #         self.collided = True
-
-        #         self.get_logger().info("COLLISION DETECTED ON GOTO")
-
-        #     elif self.arm_state == ArmState.RETURN or self.collided is True: # only detect collisions while moving
-        #         # stay put, then try to go home
-        #         ArmState.HOLD.segments.append(GotoCubic(ptip, ptip, ArmState.HOLD.duration))
+            if self.arm_state == ArmState.RETURN or self.arm_state == ArmState.GOTO: # only detect collisions while moving
+                (ptip, _, _, _) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
                 
-        #         ArmState.RETURN.segments = [] # clear it out just in case
-        #         ArmState.GOTO.segments = []
-        #         ArmState.RETURN.segments.append(GotoCubic(np.array(self.position), np.array(IDLE_POS), ArmState.RETURN.duration))
+                # stay put, then try to go home
+                ArmState.HOLD.segments.append(GotoCubic(ptip, ptip, ArmState.HOLD.duration))
+                
+                ArmState.RETURN.segments = [] # clear it out just in case
+                ArmState.GOTO.segments = []
+                ArmState.RETURN.segments.append(GotoCubic(np.array(self.position), np.array(IDLE_POS), ArmState.RETURN.duration))
 
-        #         self.arm_state = ArmState.HOLD
-        #         self.seg_start_time = time
-        #         self.collided = False
+                self.arm_state = ArmState.HOLD
+                self.seg_start_time = time
+                self.collided = False
 
-        #         self.get_logger().info("COLLISION DETECTED ON RETURN")
+                self.get_logger().info("COLLISION DETECTED")
+            
+            else:
+                pass # do nothing if collision detected on hold or idle or start
 
         pd = None
         vd = None
