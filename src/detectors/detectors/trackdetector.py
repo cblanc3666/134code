@@ -38,7 +38,7 @@ class DetectorNode(Node):
         super().__init__(name)
 
         # Thresholds in Hmin/max, Smin/max, Vmin/max TODO
-        self.hsvlimits = np.array([[9, 15], [110, 255], [120, 255]])
+        self.hsvlimits = np.array([[60, 86], [13, 70], [65, 83]])
 
         # Create a publisher for the processed (debugging) images.
         # Store up to three images, just in case.
@@ -91,7 +91,7 @@ class DetectorNode(Node):
         # No particular cleanup, just shut down the node.
         self.destroy_node()
 
-    def pixelToWorld(self, image, u, v, x0, y0, markerCorners, markerIds, annotateImage=True, angle = None, w = None, h = None):
+    def pixelToWorld(self, image, u, v, x0, y0, markerCorners, markerIds, K, D, annotateImage=True, angle = None):
             '''
             Convert the (u,v) pixel position into (x,y) world coordinates
             Inputs:
@@ -135,17 +135,10 @@ class DetectorNode(Node):
 
             # Map the object in question.
             uvObj = np.float32([u, v])
+
+            #Undistort coords 
+            uvObj = cv2.undistortPoints(uvObj, K, D)
             xyObj = cv2.perspectiveTransform(uvObj.reshape(1,1,2), M).reshape(2)
-
-            pt1 = [0, 0]
-            if angle is not None:
-                pt1[0] = u + min(h, w) / 2 * np.cos(angle)
-                pt1[1] = v + max(h, w) / 2 * np.sin(angle)
-
-
-            pt1Obj = np.float32(pt1)
-
-            world_pt1Obj = cv2.perspectiveTransform(pt1Obj.reshape(1,1,2), M).reshape(2)
 
             # Mark the detected coordinates.
             if annotateImage:
@@ -161,16 +154,6 @@ class DetectorNode(Node):
                                 0.5, (255, 0, 0), 2, cv2.LINE_AA)
 
             return xyObj
-    
-    def calculate_circularity(contour):
-        perimeter = cv2.arcLength(contour, True)
-        area = cv2.contourArea(contour)
-
-        if perimeter == 0:
-            return 0
-
-        circularity = (4 * np.pi * area) / (perimeter * perimeter)
-        return circularity
 
     # Process the image (detect the ball).
     def process(self, msg):
@@ -197,23 +180,15 @@ class DetectorNode(Node):
         y0 = 0.314
 
         rectCenter = None
-        discCenter = None
 
         # Mark the center of the image.
         cv2.circle(frame, (uc, vc), 5, self.red, -1)
 
 
         # Help to determine the HSV range...
-        if True:
-            # Draw the center lines.  Note the row is the first dimension.
-            frame = cv2.line(frame, (uc,0), (uc,H-1), self.white, 1)
-            frame = cv2.line(frame, (0,vc), (W-1,vc), self.white, 1)
+        frame = cv2.line(frame, (uc,0), (uc,H-1), self.white, 1)
+        frame = cv2.line(frame, (0,vc), (W-1,vc), self.white, 1)
 
-            # Report the center HSV values.  Note the row comes first.
-            # self.get_logger().info(
-            #     "HSV = (%3d, %3d, %3d)" % tuple(hsv[vc, uc]))
-
-        
         # Threshold in Hmin/max, Smin/max, Vmin/max
         binary = cv2.inRange(hsv, self.hsvlimits[:,0], self.hsvlimits[:,1])
 
@@ -229,12 +204,11 @@ class DetectorNode(Node):
         (contours, hierarchy) = cv2.findContours(
             binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # Draw all contours on the original image for debugging.
-        cv2.drawContours(frame, contours, -1, self.blue, 2)
+        #cv2.drawContours(frame, contours, -1, self.blue, 2)
         
         # Only proceed if at least one contour was found.  You may
         # also want to loop over the contours...
         rectangles =[]
-        circles = []
         if len(contours) > 0:
             for cnt in contours:
                 cnt_area = cv2.contourArea(cnt)
@@ -244,12 +218,8 @@ class DetectorNode(Node):
                 rotated_rect = cv2.minAreaRect(cnt)
                 #rotated_rect = cv2.boxPoints(cnt)
                 rect_area = rotated_rect[1][0] * rotated_rect[1][1]
+                #self.get_logger().info(str(rect_area))
                 rect_ratio = cnt_area /rect_area
-                
-                # comparing min circles and contour areas
-                (x, y), radius = cv2.minEnclosingCircle(cnt)
-                circ_area = np.pi * (radius ** 2)
-                circ_ratio = cnt_area / circ_area
 
                 # aspect ratio of contour, if large then its a rectangle
                 # works better than area comparison for rects
@@ -262,47 +232,9 @@ class DetectorNode(Node):
 
                 if aspect_ratio > 1.1:
                     rectangles.append(cnt)
-                    # if rect_ratio > 0.95 or rect_ratio < 1.05:
-                    #     rectangles.append(cnt)
-                elif circ_ratio > 0.95 or circ_ratio < 1.05:
-                    circles.append(cnt)
- 
-        # if rectCenter == None:
-        #     self.get_logger().info(
-        #     "rect is none")
-
-        # if discCenter is None:
-        #     self.get_logger().info(
-        #     "disc is none")
                     
         markerCorners, markerIds, _ = cv2.aruco.detectMarkers(
                 frame, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50))
-
-        if len(circles) > 0:
-            largest_circle = max(circles, key=cv2.contourArea)
-            ((ur, vr), radius) = cv2.minEnclosingCircle(largest_circle)
-            ur     = int(ur)
-            vr     = int(vr)
-            radius = int(radius)
-            #self.get_logger().info(str(ur))
-            #self.get_logger().info(str(vr))
-
-            # Draw the circle (yellow) and centroid (red) on the
-            # original image.
-            cv2.circle(frame, (ur, vr), int(radius), self.yellow,  2)
-            cv2.circle(frame, (ur, vr), 5,           self.red,    -1)
-
-            # Convert the center of the image into world coordinates.
-            discCenter = self.pixelToWorld(frame, ur, vr, x0, y0, markerCorners, markerIds)
-
-        
-            # Report.
-            # if discCenter is not None:
-            #     self.get_logger().info(
-            #         "Found Disk enclosed by radius %d about (%d,%d)" %
-            #         (radius, discCenter[0], discCenter[1]))
-            # else:
-            #     self.get_logger().info("Problem")
 
         if len(rectangles) > 0:
             largest_rotated_rectangle = max(rectangles, key=cv2.contourArea)
@@ -313,10 +245,11 @@ class DetectorNode(Node):
             box = np.int0(cv2.boxPoints(rotatedrectangle))
             #self.get_logger().info(str(box))
             cv2.drawContours(frame, [box], 0, self.red, 2)
-            rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, angle = angle, w = wm, h = hm)
+            rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, self.camK, self.camD, angle = angle)
             world_coords = []
             for coord in box:
-                transformed_pt = self.pixelToWorld(frame, coord[0], coord[1], x0, y0, markerCorners, markerIds, angle = angle, w = wm, h = hm)
+                transformed_pt = self.pixelToWorld(frame, coord[0], coord[1], x0, y0, markerCorners,
+                                                   markerIds, self.camK, self.camD, angle = angle, annotateImage=False)
                 world_coords.append(transformed_pt)
 
             norm1 = 0
@@ -358,7 +291,7 @@ class DetectorNode(Node):
             # delta_x = pt1[0] - xc
             #world_angle = np.arctan2(delta_y, delta_x)
             self.get_logger().info("Camera pointed at rectangle of (%f,%f)" % (xc, yc))
-            self.get_logger().info(f"{world_angle * 180 / np.pi}")
+            #self.get_logger().info(f"{world_angle * 180 / np.pi}")
             pose_msg = Pose()
             rect_pt = Point()
             rect_angle = Quaternion()
@@ -372,19 +305,6 @@ class DetectorNode(Node):
             pose_msg.position = rect_pt
             pose_msg.orientation = rect_angle
             self.rect_pose.publish(pose_msg)
-
-
-        if discCenter is None:
-            # self.get_logger().info("Unable to execute disc mapping")
-            pass
-        else:
-            (xc, yc) = discCenter
-            self.get_logger().info("Camera pointed at disc of (%f,%f)" % (xc, yc))
-            pt_msg = Point()
-            pt_msg.x = float(xc)
-            pt_msg.y = float(yc)
-            pt_msg.z = 0.0
-            self.circ_point.publish(pt_msg)
 
         # Convert the frame back into a ROS image and republish.
         self.pubrgb.publish(self.bridge.cv2_to_imgmsg(frame, "rgb8"))
