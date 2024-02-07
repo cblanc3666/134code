@@ -46,6 +46,7 @@ class DetectorNode(Node):
         self.pubbin = self.create_publisher(Image, name+'/binary',    3)
         self.rect_pose = self.create_publisher(Pose, "/StraightTrack", 3)
 
+
         # Set up the OpenCV bridge.
         self.bridge = cv_bridge.CvBridge()
 

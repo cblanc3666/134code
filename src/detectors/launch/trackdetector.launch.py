@@ -13,8 +13,8 @@ from launch                            import LaunchDescription
 from launch.actions                    import Shutdown
 from launch_ros.actions                import Node
 
-#from camera_config import CameraConfig, USB_CAM_DIR
-USB_CAM_DIR = pkgdir('usb_cam')
+from camera_config import CameraConfig, USB_CAM_DIR
+# USB_CAM_DIR = pkgdir('usb_cam')
 
 #
 # Generate the Launch Description
@@ -31,23 +31,7 @@ def generate_launch_description():
         executable = 'usb_cam_node_exe',
         namespace  = 'usb_cam',
         output     = 'screen',
-        parameters = [{'camera_name':         'logitech'},
-                      {'video_device':        '/dev/video0'},
-                      {'pixel_format':        'yuyv2rgb'},
-                      {'image_width':         640},
-                      {'image_height':        480},
-                      {'framerate':           15.0},
-                      {'brightness':          175}, # -1
-                      {'contrast':            150}, # -1
-                      {'saturation':          128}, # -1
-                      {'sharpness':           200}, # -1
-                      {'gain':                1}, # -1
-                      {'auto_white_balance':  False},
-                      {'white_balance':       4000},
-                      {'autoexposure':        False},
-                      {'exposure':            100},
-                      {'autofocus':           True},
-                      {'focus':               -1}],
+        param_path=Path(USB_CAM_DIR, 'config', 'params_1.yaml'),
         
     )
 
