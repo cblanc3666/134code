@@ -32,6 +32,7 @@ setup(
             'detectaruco   = detectors.detectaruco:main',
             'writearuco    = detectors.writearuco:main',
             'demodetector    = detectors.demodetector:main',
+            'trackdetector = detectors.trackdetector:main',
         ],
     },
 )
