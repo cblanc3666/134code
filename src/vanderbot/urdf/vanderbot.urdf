@@ -3,30 +3,24 @@
      Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
      For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
 <robot
-  name="console.log">
+  name="vanderbot">
+  <link name='world'/>
+  
+  <joint name="fix" type="fixed">
+    <parent link="world"/>
+    <child  link="base_link"/>
+    <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+  </joint>
+
   <link
     name="base_link">
-    <inertial>
-      <origin
-        xyz="0.0042869 0.010394 -0.00046682"
-        rpy="0 0 0" />
-      <mass
-        value="0.80794" />
-      <inertia
-        ixx="0.0017182"
-        ixy="3.2535E-07"
-        ixz="6.6866E-06"
-        iyy="0.0034685"
-        iyz="8.0182E-08"
-        izz="0.0017776" />
-    </inertial>
     <visual>
       <origin
         xyz="0 0 0"
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://console.log/meshes/base_link.STL" />
+          filename="package://vanderbot/meshes/base_link.STL" />
       </geometry>
       <material
         name="">
@@ -40,33 +34,19 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://console.log/meshes/base_link.STL" />
+          filename="package://vanderbot/meshes/base_link.STL" />
       </geometry>
     </collision>
   </link>
   <link
     name="link_1">
-    <inertial>
-      <origin
-        xyz="-0.013799 -0.061274 0.01066"
-        rpy="0 0 0" />
-      <mass
-        value="0.5361" />
-      <inertia
-        ixx="0.00040448"
-        ixy="-6.1248E-06"
-        ixz="-6.4913E-05"
-        iyy="0.00025426"
-        iyz="-3.5893E-06"
-        izz="0.00038142" />
-    </inertial>
     <visual>
       <origin
         xyz="0 0 0"
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://console.log/meshes/link_1.STL" />
+          filename="package://vanderbot/meshes/link_1.STL" />
       </geometry>
       <material
         name="">
@@ -80,13 +60,13 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://console.log/meshes/link_1.STL" />
+          filename="package://vanderbot/meshes/link_1.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="joint_1"
-    type="revolute">
+    type="continuous">
     <origin
       xyz="0 0.050345 0"
       rpy="0 0 3.1416" />
@@ -104,27 +84,13 @@
   </joint>
   <link
     name="link_2">
-    <inertial>
-      <origin
-        xyz="0.1032 -0.16559 0.09529"
-        rpy="0 0 0" />
-      <mass
-        value="0.66905" />
-      <inertia
-        ixx="0.0016696"
-        ixy="0.00051422"
-        ixz="-0.00045264"
-        iyy="0.00096207"
-        iyz="0.00061299"
-        izz="0.0015097" />
-    </inertial>
     <visual>
       <origin
         xyz="0 0 0"
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://console.log/meshes/link_2.STL" />
+          filename="package://vanderbot/meshes/link_2.STL" />
       </geometry>
       <material
         name="">
@@ -138,13 +104,13 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://console.log/meshes/link_2.STL" />
+          filename="package://vanderbot/meshes/link_2.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="joint_2"
-    type="revolute">
+    type="continuous">
     <origin
       xyz="0.010361 -0.08053 -0.0086937"
       rpy="0 0 0" />
@@ -162,27 +128,13 @@
   </joint>
   <link
     name="link_3">
-    <inertial>
-      <origin
-        xyz="0.0035901 0.23169 -0.29857"
-        rpy="0 0 0" />
-      <mass
-        value="0.44826" />
-      <inertia
-        ixx="0.0039577"
-        ixy="-8.6178E-08"
-        ixz="2.55E-08"
-        iyy="0.0024082"
-        iyz="0.0018186"
-        izz="0.0015941" />
-    </inertial>
     <visual>
       <origin
         xyz="0 0 0"
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://console.log/meshes/link_3.STL" />
+          filename="package://vanderbot/meshes/link_3.STL" />
       </geometry>
       <material
         name="">
@@ -196,13 +148,13 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://console.log/meshes/link_3.STL" />
+          filename="package://vanderbot/meshes/link_3.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="joint_3"
-    type="revolute">
+    type="continuous">
     <origin
       xyz="0.1768 -0.3469 0.259"
       rpy="-3.1416 -0.69813 3.1416" />
@@ -220,27 +172,13 @@
   </joint>
   <link
     name="link_4">
-    <inertial>
-      <origin
-        xyz="0.020972 0.044147 -0.016056"
-        rpy="0 0 0" />
-      <mass
-        value="0.23962" />
-      <inertia
-        ixx="0.00013632"
-        ixy="-1.3355E-05"
-        ixz="1.6582E-05"
-        iyy="0.00020691"
-        iyz="1.111E-05"
-        izz="0.00013288" />
-    </inertial>
     <visual>
       <origin
         xyz="0 0 0"
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://console.log/meshes/link_4.STL" />
+          filename="package://vanderbot/meshes/link_4.STL" />
       </geometry>
       <material
         name="">
@@ -254,13 +192,13 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://console.log/meshes/link_4.STL" />
+          filename="package://vanderbot/meshes/link_4.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="joint_4"
-    type="revolute">
+    type="continuous">
     <origin
       xyz="-0.031045 0.34673 -0.43413"
       rpy="-3.1416 0.69813 3.1416" />

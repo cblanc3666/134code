@@ -1,10 +1,9 @@
-"""Send commands to motors and receive data from them
+"""Show the URDF of the robot (not actual hardware required)
 
    This should start
      1) RVIZ, ready to view the robot
      2) The robot_state_publisher (listening to /joint_commands)
-     3) The HEBI node to communicate with the motors
-     4) Scripts to issue commands
+     3) The GUI to issues commands
 
 """
 
@@ -30,7 +29,7 @@ def generate_launch_description():
     rvizcfg = os.path.join(pkgdir('vanderbot'), 'rviz/viewurdf.rviz')
 
     # Locate/load the robot's URDF file (XML).
-    urdf = os.path.join(pkgdir('vanderbot'), 'urdf/threedofexample.urdf') # TODO UPDATE
+    urdf = os.path.join(pkgdir('vanderbot'), 'urdf/vanderbot.urdf')
     with open(urdf, 'r') as file:
         robot_description = file.read()
 
@@ -63,36 +62,6 @@ def generate_launch_description():
         arguments  = ['-d', rvizcfg],
         on_exit    = Shutdown())
 
-    # Configure a node for the hebi interface.  Note the 200ms timeout
-    # is useful as the GUI only runs at 10Hz.
-    node_hebi_SLOW = Node(
-        name       = 'hebi', 
-        package    = 'hebiros',
-        executable = 'hebinode',
-        output     = 'screen',
-        parameters = [{'family':   'robotlab'},
-                      {'motors':   ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']},
-                      {'joints':   ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']},
-                      {'lifetime': 200.0}],
-        on_exit    = Shutdown())
-
-    node_hebi = Node(
-        name       = 'hebi', 
-        package    = 'hebiros',
-        executable = 'hebinode',
-        output     = 'screen',
-        parameters = [{'family':   'robotlab'},
-                      {'motors':   ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']},
-                      {'joints':   ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']}],
-        on_exit    = Shutdown())
-
-    # Runs code to move actuators and receive feedback from them
-    node_actuate = Node(
-        name       = 'actuate', 
-        package    = 'vanderbot',
-        executable = 'actuate',
-        output     = 'screen')
-
     # Configure a node for the GUI to command the robot.
     node_gui = Node(
         name       = 'gui', 
@@ -100,6 +69,16 @@ def generate_launch_description():
         executable = 'joint_state_publisher_gui',
         output     = 'screen',
         remappings = [('/joint_states', '/joint_commands')],
+        on_exit    = Shutdown())
+    
+    node_hebi = Node(
+        name       = 'hebi', 
+        package    = 'hebiros',
+        executable = 'hebinode',
+        output     = 'screen',
+        parameters = [{'family':   'robotlab'},
+                      {'motors':   ['base', 'shoulder', 'elbow', 'wrist']},
+                      {'joints':   ['base', 'shoulder', 'elbow', 'wrist']}],
         on_exit    = Shutdown())
 
 
@@ -109,10 +88,9 @@ def generate_launch_description():
     # Return the description, built as a python list.
     return LaunchDescription([
 
-        # Run the robot AND watch the COMMANDS.
-        node_robot_state_publisher_COMMAND,
+        # Use RVIZ to view the URDF commanded by the GUI.
+        node_robot_state_publisher_ACTUAL,
         node_rviz,
+        # node_gui,
         node_hebi,
-
-        node_actuate,
     ])

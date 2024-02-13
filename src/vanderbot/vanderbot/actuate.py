@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 #
-#   receivepoint.py
+#   actuate.py
 #
-#   Demonstration node to interact with the HEBIs, made to handle multiple 
+#   node to interact with the HEBIs, made to handle multiple 
 #   points from camera.
 #
 import numpy as np
