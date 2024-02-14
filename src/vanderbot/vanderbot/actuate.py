@@ -143,7 +143,7 @@ class VanderNode(Node):
 
         # Report.
         self.get_logger().info("Running %s" % name)
-        self.chain = KinematicChain('world', 'tip', self.jointnames())
+        self.chain = KinematicChain('world', 'tip', self.jointnames()) # TODO add tip to URDF
 
         self.numbersub = self.create_subscription(Float32, '/number', self.cb_number, 1)
 
@@ -363,7 +363,7 @@ class VanderNode(Node):
             vr   = vd + self.lam * ep(pd, ptip_des)
 
             Jinv = Jv.T @ np.linalg.pinv(Jv @ Jv.T + gamma**2 * np.eye(3))
-            qdot = Jinv @ vr ## ikin result
+            qdot = Jinv @ vr ## ikin result TODO 
 
             # old version that mixed ikin feedback loop with motor fdbk loop
             # q = np.reshape(self.position, (-1, 1)) + qdot / RATE 
