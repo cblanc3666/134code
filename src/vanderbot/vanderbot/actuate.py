@@ -2,8 +2,8 @@
 #
 #   actuate.py
 #
-#   node to interact with the HEBIs, made to handle multiple 
-#   points from camera.
+#   node to interact with the HEBIs, runs looping code to move motors based on
+#   inputs received
 #
 import numpy as np
 import rclpy
@@ -14,7 +14,7 @@ from rclpy.node                 import Node
 from sensor_msgs.msg            import JointState
 from geometry_msgs.msg          import Point, Pose, Quaternion
 
-from basic134.Segments          import GotoCubic
+from basic134.Segments          import Hold, Stay, Goto5, QuinticSpline
 from basic134.KinematicChain    import KinematicChain
 from basic134.TransformHelpers  import *
 from std_msgs.msg               import Float32
@@ -40,6 +40,7 @@ class ArmState(Enum):
         self.duration = duration
         self.segments = segments
 
+    # TODO remove unused states
     START = 5.0, []  # initial state
     GOTO  = 3.0, []  # moving to a commanded point, either from IDLE_POS or a 
                     # previously commanded point
@@ -53,33 +54,35 @@ class ArmState(Enum):
 
 
 # Holding position over the table
-IDLE_POS = [0.0, 0.0, -np.pi/2]
+IDLE_POS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # TODO
 
 # Initial joint velocity (should be zero)
-QDOT_INIT = [0.0, 0.0, 0.0]
+QDOT_INIT = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # TODO
 
 # magnitude of the joint space divergence (||real - des||) that constitutes a 
 # collision
-Q_COLLISION_THRESHOLD = 0.07
-QDOT_COLLISION_THRESHOLD = 0.5
+Q_COLLISION_THRESHOLD = 0.07 # TODO
+QDOT_COLLISION_THRESHOLD = 0.5 # TODO
 
 #
-#   DEMO Node Class
+#   Vanderbot Node Class
 #
-class DemoNode(Node):
-    position = None # real joint positions
-    qdot = None     # real joint velocities
-    effort = None   # real joint efforts
+class VanderNode(Node):
+    # joints are in form ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']
+    
+    position =  None # real joint positions
+    qdot =      None # real joint velocities
+    effort =    None # real joint efforts
 
-    q_des = None # desired joint positions 
-    qdot_des = None # desired joint velocities
+    q_des =     None # desired joint positions 
+    qdot_des =  None # desired joint velocities
     start_time = 0 # time of initialization
     seg_start_time = 0  # logs the time (relative to start_time) that last segment started
                         # or, if state is IDLE, time that it has been idle
     arm_state = ArmState.START # initialize state machine
 
 
-    grav = 1.65
+    grav = 1.65 # TODO
 
     # Initialization.
     def __init__(self, name):
@@ -99,9 +102,10 @@ class DemoNode(Node):
         self.start_time = self.get_clock().now().nanoseconds * 1e-9
 
         # Set up first spline (only shoulder is moving)
-        ArmState.START.segments.append(GotoCubic(np.array(self.position0), 
-                                     np.array([self.position0[0], IDLE_POS[1], self.position0[2]]),
-                                     ArmState.START.duration))
+        ArmState.START.segments.append(Goto5(np.array(self.position0), 
+                                     np.array([self.position0[0], IDLE_POS[1], self.position0[2], self.position0[3], self.position0[4], self.position0[5]]),
+                                     ArmState.START.duration,
+                                     space='Joint'))
 
         # Create a message and publisher to send the joint commands.
         self.cmdmsg = JointState()
@@ -123,16 +127,18 @@ class DemoNode(Node):
         self.get_logger().info("Sending commands with dt of %f seconds (%fHz)" %
                                (self.timer.timer_period_ns * 1e-9, rate))
 
+        # TODO subscribe to track messages
+        
         self.fbksub = self.create_subscription(
             Point, '/point', self.recvpoint, 10)
         
-        #Create subscriber to circle message
-        self.circle_pos = None
-        self.fbkcirc = self.create_subscription(Point, '/Circle', self.recvCircle, 10)
+        # #Create subscriber to circle message
+        # self.circle_pos = None
+        # self.fbkcirc = self.create_subscription(Point, '/Circle', self.recvCircle, 10)
 
-        #Create subscriber to rectangle message
-        self.rect_pos = None
-        self.fbkrect = self.create_subscription(Pose, '/Rectangle', self.recvRect, 10)
+        # #Create subscriber to rectangle message
+        # self.rect_pos = None
+        # self.fbkrect = self.create_subscription(Pose, '/Rectangle', self.recvRect, 10)
 
 
         # Report.
@@ -146,7 +152,7 @@ class DemoNode(Node):
 
     def jointnames(self):
         # Return a list of joint names FOR THE EXPECTED URDF!
-        return ['base', 'shoulder', 'elbow']
+        return ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']
 
     # Shutdown
     def shutdown(self):
@@ -170,39 +176,6 @@ class DemoNode(Node):
 
         # Return the values.
         return self.grabpos
-    
-    def recvRect(self, rec_Rect):
-        x = rec_Rect.position.x
-        y = rec_Rect.position.y
-        z = rec_Rect.position.z
-
-        theta = 2 * np.arcsin(rec_Rect.orientation.z)
-
-        self.rect_pos = [x, y, z, theta]
-        if x is not None:
-            # self.get_logger().info("Rectangle" + str(self.rect_pos))
-            # self.get_logger().info("Theta" + str(theta))
-
-            [x1, y1, z1] = [x + 0.05*np.sin(theta), y - 0.05*np.cos(theta), z]
-            [x2, y2, z2] = [x - 0.05*np.sin(theta), y + 0.05*np.cos(theta), z]
-
-            # only add splines if we're not currently moving
-            if self.arm_state == ArmState.IDLE:
-                ArmState.GOTO.segments.append(GotoCubic(np.reshape([x1, y1, z1], (-1, 1)), np.reshape([x, y, z+0.05], (-1, 1)), ArmState.GOTO.duration))
-                ArmState.GOTO.segments.append(GotoCubic(np.reshape([x, y, z+0.05], (-1, 1)), np.reshape([x2, y2, z2], (-1, 1)), ArmState.GOTO.duration))
-
-            self.gotopoint(x1, y1, z1)
-
-    def recvCircle(self, rec_Circle):
-        x = rec_Circle.x
-        y = rec_Circle.y
-        z = rec_Circle.z
-
-        self.circle_pos = [x, y, z]
-        if x is not None:
-            #self.get_logger().info("Circle" + str(self.circle_pos))
-
-            self.gotopoint(x, y, z)
 
 
     # Receive feedback - called repeatedly by incoming messages.
@@ -231,7 +204,10 @@ class DemoNode(Node):
         (idle_pos, _, _, _) = self.chain.fkin(np.reshape(IDLE_POS, (-1, 1)))
         
         # insert at position zero because sometimes we already have splines
-        ArmState.GOTO.segments.insert(0, GotoCubic(idle_pos, np.reshape([x, y, z], (-1, 1)), ArmState.GOTO.duration))
+        ArmState.GOTO.segments.insert(0, Goto5(idle_pos, 
+                                               np.reshape([x, y, z], (-1, 1)), 
+                                               ArmState.GOTO.duration,
+                                               space='Task'))
 
         # Report.
         #self.get_logger().info("Going to point %r, %r, %r" % (x,y,z))
@@ -253,9 +229,9 @@ class DemoNode(Node):
             return
 
         self.cmdmsg.header.stamp = self.get_clock().now().to_msg()
-        self.cmdmsg.name         = ['base', 'shoulder', 'elbow']
-        self.cmdmsg.velocity     = [0.0, 0.0, 0.0]
-        self.cmdmsg.effort       = [0.0, self.grav * -np.sin(self.position[1]), 0.0]
+        self.cmdmsg.name         = ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']
+        self.cmdmsg.velocity     = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.cmdmsg.effort       = [0.0, self.grav * -np.sin(self.position[1]), 0.0] # TODO
 
         # Code for turning off effort to test gravity
         # nan = float("nan")
@@ -267,7 +243,7 @@ class DemoNode(Node):
         # self.get_logger().info("position: %r" % self.position)
         # self.get_logger().info("qdes: %r" % self.q_des)
 
-        # collision checking
+        # collision checking TODO
         if np.linalg.norm(ep(np.array(self.q_des), self.position)) > Q_COLLISION_THRESHOLD or \
            np.linalg.norm(ep(np.array(self.qdot_des), self.qdot)) > QDOT_COLLISION_THRESHOLD:
             
@@ -275,11 +251,16 @@ class DemoNode(Node):
                 (ptip, _, _, _) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
                 
                 # stay put, then try to go home
-                ArmState.HOLD.segments.append(GotoCubic(ptip, ptip, ArmState.HOLD.duration))
+                ArmState.HOLD.segments.append(Hold(ptip, 
+                                                   ArmState.HOLD.duration,
+                                                   space='Joint'))
                 
                 ArmState.RETURN.segments = [] # clear it out just in case
                 ArmState.GOTO.segments = []
-                ArmState.RETURN.segments.append(GotoCubic(np.array(self.position), np.array(IDLE_POS), ArmState.RETURN.duration))
+                ArmState.RETURN.segments.append(Goto5(np.array(self.position), 
+                                                      np.array(IDLE_POS), 
+                                                      ArmState.RETURN.duration,
+                                                      space='Joint'))
 
                 self.arm_state = ArmState.HOLD
                 self.seg_start_time = time
@@ -307,7 +288,10 @@ class DemoNode(Node):
                 ArmState.START.segments.pop(0) # remove the segment since we're done
 
                 # Sets up next spline since base and elbow joints start at arbitrary positions
-                ArmState.RETURN.segments.append(GotoCubic(np.array(self.q_des), np.array(IDLE_POS), ArmState.RETURN.duration))
+                ArmState.RETURN.segments.append(Goto5(np.array(self.q_des), 
+                                                      np.array(IDLE_POS), 
+                                                      ArmState.RETURN.duration,
+                                                      space='Joint'))
             
         elif self.arm_state == ArmState.RETURN:
             # Moving the base and elbow to waiting position
@@ -334,7 +318,10 @@ class DemoNode(Node):
                     self.arm_state = ArmState.GOTO
                 else:
                     self.arm_state = ArmState.RETURN
-                    ArmState.RETURN.segments.append(GotoCubic(np.array(self.q_des), np.array(IDLE_POS), ArmState.RETURN.duration))
+                    ArmState.RETURN.segments.append(Goto5(np.array(self.q_des), 
+                                                          np.array(IDLE_POS), 
+                                                          ArmState.RETURN.duration,
+                                                          space='Joint'))
 
         elif self.arm_state == ArmState.GOTO:
             # Moving to commanded point
@@ -347,7 +334,9 @@ class DemoNode(Node):
                 self.collided = False # successfully finished a goto, reset collision boolean
 
                 # stay put during hold
-                ArmState.HOLD.segments.append(GotoCubic(pd, pd, ArmState.HOLD.duration))
+                ArmState.HOLD.segments.append(Hold(pd, 
+                                                   ArmState.HOLD.duration,
+                                                   space='Joint'))
 
         elif self.arm_state == ArmState.IDLE:
             q = IDLE_POS
@@ -361,7 +350,10 @@ class DemoNode(Node):
             self.seg_start_time = time
 
             # reset return just in case
-            ArmState.RETURN.segments = [GotoCubic(np.array(self.q_des), np.array(IDLE_POS), ArmState.RETURN.duration)]
+            ArmState.RETURN.segments = [Goto5(np.array(self.q_des), 
+                                              np.array(IDLE_POS), 
+                                              ArmState.RETURN.duration,
+                                              space='Joint')]
 
 
         if pd is not None: # we are using task space spline
@@ -407,7 +399,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     # Instantiate the DEMO node.
-    node = DemoNode('demo')
+    node = VanderNode('demo')
 
     # Spin the node until interrupted.
     rclpy.spin(node)
