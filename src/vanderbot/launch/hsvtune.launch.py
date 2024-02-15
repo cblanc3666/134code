@@ -51,7 +51,7 @@ def generate_launch_description():
     # Configure the HSV tuning utility node
     node_hsvtune = Node(
         name       = 'hsvtuner', 
-        package    = 'detectors',
+        package    = 'vanderbot',
         executable = 'hsvtune',
         output     = 'screen',
         remappings = [('/image_raw', '/usb_cam/image_raw')])

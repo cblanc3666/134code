@@ -38,7 +38,9 @@ class DetectorNode(Node):
         super().__init__(name)
 
         # Thresholds in Hmin/max, Smin/max, Vmin/max TODO
-        self.hsvlimits = np.array([[60, 86], [13, 70], [65, 83]])
+        # self.hsvlimits = np.array([[60, 86], [13, 70], [65, 83]])
+        
+        self.hsvlimits = np.array([[9, 15], [110, 255], [120, 255]])
 
         # Create a publisher for the processed (debugging) images.
         # Store up to three images, just in case.
@@ -120,15 +122,15 @@ class DetectorNode(Node):
 
             # Determine the center of the marker pixel coordinates.
             uvMarkers = np.zeros((4,2), dtype='float32')
+            
             for i in range(4):
                 uvMarkers[markerIds[i]-1,:] = np.mean(markerCorners[i], axis=1)
 
             # Calculate the matching World coordinates of the 4 Aruco markers.
-            DX = 0.1016
-            DY = 0.06985
+            DX = 0.708
+            DY = 0.303
             xyMarkers = np.float32([[x0+dx, y0+dy] for (dx, dy) in
                                     [(-DX, DY), (DX, DY), (-DX, -DY), (DX, -DY)]])
-
 
             # Create the perspective transform.
             M = cv2.getPerspectiveTransform(uvMarkers, xyMarkers)
@@ -137,7 +139,7 @@ class DetectorNode(Node):
             uvObj = np.float32([u, v])
 
             #Undistort coords 
-            uvObj = cv2.undistortPoints(uvObj, K, D)
+            # uvObj = cv2.undistortPoints(uvObj, K, D) #TODO need this back
             xyObj = cv2.perspectiveTransform(uvObj.reshape(1,1,2), M).reshape(2)
 
             # Mark the detected coordinates.
@@ -155,7 +157,7 @@ class DetectorNode(Node):
 
             return xyObj
 
-    # Process the image (detect the ball).
+    # Process the image (detect the track).
     def process(self, msg):
         # Confirm the encoding and report.
         assert(msg.encoding == "rgb8")
@@ -177,7 +179,7 @@ class DetectorNode(Node):
 
         # Assume the center of marker sheet is at the world origin.
         x0 = 0.0
-        y0 = 0.314
+        y0 = 0.382
 
         rectCenter = None
 
@@ -189,6 +191,10 @@ class DetectorNode(Node):
         frame = cv2.line(frame, (uc,0), (uc,H-1), self.white, 1)
         frame = cv2.line(frame, (0,vc), (W-1,vc), self.white, 1)
 
+        # Report the center HSV values.  Note the row comes first.
+        # self.get_logger().info(
+        #     "HSV = (%3d, %3d, %3d)" % tuple(hsv[vc, uc]))
+
         # Threshold in Hmin/max, Smin/max, Vmin/max
         binary = cv2.inRange(hsv, self.hsvlimits[:,0], self.hsvlimits[:,1])
 
@@ -197,7 +203,6 @@ class DetectorNode(Node):
         binary = cv2.erode( binary, None, iterations=iter)
         binary = cv2.dilate(binary, None, iterations=3*iter)
         binary = cv2.erode( binary, None, iterations=iter)
-
 
         # Find contours in the mask and initialize the current
         # (x, y) center of the ball
@@ -234,7 +239,7 @@ class DetectorNode(Node):
                     rectangles.append(cnt)
                     
         markerCorners, markerIds, _ = cv2.aruco.detectMarkers(
-                frame, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50))
+                frame, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50))
 
         if len(rectangles) > 0:
             largest_rotated_rectangle = max(rectangles, key=cv2.contourArea)
