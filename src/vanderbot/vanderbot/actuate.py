@@ -40,24 +40,30 @@ class ArmState(Enum):
         self.duration = duration
         self.segments = segments
 
-    # TODO remove unused states
-    START = 5.0, []  # initial state
-    GOTO  = 3.0, []  # moving to a commanded point, either from IDLE_POS or a 
+    # TODO remove unused states. add gripper state with spline
+    START = 10.0, []  # initial state
+    GOTO  = 20.0, []  # moving to a commanded point, either from IDLE_POS or a 
                     # previously commanded point
-    RETURN = 3.0, [] # moving back to IDLE_POS, either because no other point has 
+    RETURN = 15.0, [] # moving back to IDLE_POS, either because no other point has 
                     # been commanded or because the next point is too far from
                     # the previous point
                     # Returning ALWAYS uses a joint space spline
     IDLE = None, []  # nothing commanded, arm is at IDLE_POS
-    HOLD = 3, []   # holding at a commanded point, preparing to return or move to
+    HOLD = 2.0, []   # holding at a commanded point, preparing to return or move to
                     # next point
 
 
 # Holding position over the table
-IDLE_POS = [0.0, np.pi/2, 1.8, 0.0, 0.0, 0.0] # TODO tweak this
+IDLE_POS = [0.0, 1.4, 1.4, 0.0, 0.0] # TODO tweak this
+IDLE_GRIP = 0.0
+IDLE_ALPHA = 0.0
+IDLE_BETA = 0.0
 
 # Initial joint velocity (should be zero)
-QDOT_INIT = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+QDOT_INIT = [0.0, 0.0, 0.0, 0.0, 0.0]
+
+# Gripper initial Q and Qdot
+GRIP_QDOT_INIT = 0.0
 
 # magnitude of the joint space divergence (||real - des||) that constitutes a 
 # collision
@@ -70,19 +76,27 @@ QDOT_COLLISION_THRESHOLD = 0.5 # TODO
 class VanderNode(Node):
     # joints are in form ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']
     
-    position =  None # real joint positions
-    qdot =      None # real joint velocities
-    effort =    None # real joint efforts
+    position =  None # real joint positions (does not include gripper)
+    qdot =      None # real joint velocities (does not include gripper)
+    effort =    None # real joint efforts (does not include gripper)
 
-    q_des =     None # desired joint positions 
-    qdot_des =  None # desired joint velocities
+    grip_position = None # real gripper position
+    grip_qdot = None # real gripper joint velocity
+    grip_effort = None # real gripper effort
+
+    q_des =     None # desired joint positions (does not include gripper)
+    qdot_des =  None # desired joint velocities (does not include gripper)
+
+    grip_q_des =  None # desired gripper position
+    grip_qdot_des = None # desired gripper joint velocity
+
     start_time = 0 # time of initialization
     seg_start_time = 0  # logs the time (relative to start_time) that last segment started
                         # or, if state is IDLE, time that it has been idle
     arm_state = ArmState.START # initialize state machine
 
 
-    grav_elbow = -6 # elbow torque constant
+    grav_elbow = -6.5 # elbow torque constant
     grav_shoulder = 12.5 # shoulder torque constant
 
     # Initialization.
@@ -91,11 +105,15 @@ class VanderNode(Node):
         super().__init__(name)
 
         # Create a temporary subscriber to grab the initial position.
-        self.position0 = self.grabfbk()
+        fbk = self.grabfbk()
+        self.position0 = fbk[:5] # trim off gripper position to save separately
+        self.grip_position0 = fbk[5]
 
         # Set the initial desired position to initial position so robot stay put
         self.q_des = self.position0
         self.qdot_des = QDOT_INIT
+        self.grip_q_des = self.grip_position0
+        self.grip_qdot_des = GRIP_QDOT_INIT
         
         self.get_logger().info("Initial positions: %r" % self.position0)
 
@@ -104,7 +122,7 @@ class VanderNode(Node):
 
         # Set up first spline (only shoulder is moving)
         ArmState.START.segments.append(Goto5(np.array(self.position0), 
-                                     np.array([self.position0[0], IDLE_POS[1], self.position0[2], self.position0[3], self.position0[4], self.position0[5]]),
+                                     np.array([self.position0[0], IDLE_POS[1], self.position0[2], self.position0[3], self.position0[4]]),
                                      ArmState.START.duration,
                                      space='Joint'))
 
@@ -144,7 +162,7 @@ class VanderNode(Node):
 
         # Report.
         self.get_logger().info("Running %s" % name)
-        self.chain = KinematicChain('world', 'tip', self.jointnames()) # TODO add tip to URDF
+        self.chain = KinematicChain('world', 'tip', self.jointnames())
 
         
         # Pick the convergence bandwidth.
@@ -160,7 +178,7 @@ class VanderNode(Node):
         self.destroy_node()
 
 
-    # Grab a single feedback - do not call this repeatedly.
+    # Grab a single feedback - do not call this repeatedly. For all 6 motors.
     def grabfbk(self):
         # Create a temporary handler to grab the position.
         def cb(fbkmsg):
@@ -180,9 +198,18 @@ class VanderNode(Node):
 
     # Receive feedback - called repeatedly by incoming messages.
     def recvfbk(self, fbkmsg):
-        self.position = np.array(list(fbkmsg.position))
-        self.qdot = np.array(list(fbkmsg.velocity))
-        self.effort = np.array(list(fbkmsg.effort))
+        position = np.array(list(fbkmsg.position)) # trim off gripper and save
+        qdot = np.array(list(fbkmsg.velocity)) 
+        effort = np.array(list(fbkmsg.effort)) 
+
+        self.position = position[:5]
+        self.qdot = qdot[:5]
+        self.effort = effort[:5]
+
+        self.grip_position = position[5]
+        self.grip_qdot = qdot[5]
+        self.grip_effort = effort[5]
+
 
     def recvpoint(self, pointmsg):
         # Extract the data.
@@ -203,9 +230,12 @@ class VanderNode(Node):
         # Go to command position JOINT SPACE
         (idle_pos, _, _, _) = self.chain.fkin(np.reshape(IDLE_POS, (-1, 1)))
         
+        idle_pos = np.vstack((idle_pos, IDLE_ALPHA, IDLE_BETA))
+
         # insert at position zero because sometimes we already have splines
-        ArmState.GOTO.segments.insert(0, Goto5(idle_pos, 
-                                               np.reshape([x, y, z], (-1, 1)), 
+        # set alpha desired to zero - want to be facing down on table
+        ArmState.GOTO.segments.insert(0, Goto5(np.reshape(idle_pos, (-1, 1)), 
+                                               np.reshape([x, y, z, 0, 0], (-1, 1)), 
                                                ArmState.GOTO.duration,
                                                space='Task'))
 
@@ -213,9 +243,7 @@ class VanderNode(Node):
         #self.get_logger().info("Going to point %r, %r, %r" % (x,y,z))
     
     # Send a command - called repeatedly by the timer.
-    def sendcmd(self):
-        self.get_logger().info(str(self.arm_state))
-        
+    def sendcmd(self):        
         # self.get_logger().info("Current state %r" % self.arm_state)
         # Time since start
         time = self.get_clock().now().nanoseconds * 1e-9 - self.start_time
@@ -227,13 +255,14 @@ class VanderNode(Node):
 
         self.cmdmsg.header.stamp = self.get_clock().now().to_msg()
         self.cmdmsg.name         = ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']
-        self.cmdmsg.velocity     = QDOT_INIT
+        self.cmdmsg.velocity     = list(np.append(QDOT_INIT, GRIP_QDOT_INIT))
         
         # gravity compensation
         # cosine of shoulder angle minus (because they are oriented opposite) elbow angle
         tau_elbow = self.grav_elbow * np.cos(self.position[1] - self.position[2])
         tau_shoulder = -tau_elbow + self.grav_shoulder * np.cos(self.position[1])
-        self.cmdmsg.effort       = [0.0, tau_shoulder, tau_elbow, 0.0, 0.0, 0.0]
+        tau_grip = -3.15
+        self.cmdmsg.effort       = [0.0, tau_shoulder, tau_elbow, 0.0, 0.0, tau_grip]
 
         # Code for turning off effort to test gravity
         # nan = float("nan")
@@ -252,6 +281,9 @@ class VanderNode(Node):
         #     if self.arm_state == ArmState.RETURN or self.arm_state == ArmState.GOTO: # only detect collisions while moving
         #         (ptip, _, _, _) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
                 
+        #         alpha = self.position[1]-self.position[2]+self.position[3] # TODO check if the signs on these are correct
+        #         beta = self.position[0]-self.position[4] # base minus twist
+        #         ptip = np.vstack((ptip, alpha, beta))
         #         # stay put, then try to go home
         #         ArmState.HOLD.segments.append(Hold(ptip, 
         #                                            ArmState.HOLD.duration,
@@ -260,9 +292,9 @@ class VanderNode(Node):
         #         ArmState.RETURN.segments = [] # clear it out just in case
         #         ArmState.GOTO.segments = []
         #         ArmState.RETURN.segments.append(Goto5(np.array(self.position), 
-        #                                               np.array(IDLE_POS), 
-        #                                               ArmState.RETURN.duration,
-        #                                               space='Joint'))
+        #                                              np.array(IDLE_POS), 
+        #                                              ArmState.RETURN.duration,
+        #                                              space='Joint'))
 
         #         self.arm_state = ArmState.HOLD
         #         self.seg_start_time = time
@@ -362,10 +394,19 @@ class VanderNode(Node):
             # run fkin on previous qdes
             (ptip_des, _, Jv, _) = self.chain.fkin(np.reshape(self.q_des, (-1, 1)))
             
+            # extract alpha and beta directly from joint space
+            alpha = self.q_des[1]-self.q_des[2]+self.q_des[3] # TODO check if the signs on these are correct
+            beta = self.q_des[0]-self.q_des[4] # base minus twist
+
+            ptip_des = np.vstack((ptip_des, alpha, beta))
+
             vr   = vd + self.lam * ep(pd, ptip_des)
 
-            Jinv = Jv.T @ np.linalg.pinv(Jv @ Jv.T + gamma**2 * np.eye(3))
-            qdot = Jinv @ vr ## ikin result TODO 
+            # TODO hard-code these arrays in as constants somewhere since we use them to calculate alpha and beta in fkin
+            Jv_mod = np.vstack((Jv, [0, 1, -1, 1, 0], [1, 0, 0, 0, -1]))
+
+            Jinv = Jv_mod.T @ np.linalg.pinv(Jv_mod @ Jv_mod.T + gamma**2 * np.eye(5))
+            qdot = Jinv @ vr # ikin result
 
             # old version that mixed ikin feedback loop with motor fdbk loop
             # q = np.reshape(self.position, (-1, 1)) + qdot / RATE 
@@ -387,8 +428,8 @@ class VanderNode(Node):
         # print(qdot.flatten(), "\n")
         # print(self.cmdmsg.position)
 
-        self.cmdmsg.position = self.q_des
-        self.cmdmsg.velocity = self.qdot_des
+        self.cmdmsg.position = list(np.append(self.q_des, self.grip_q_des))
+        self.cmdmsg.velocity = list(np.append(self.qdot_des, self.grip_qdot_des))
 
         # Publish commands, makes robot move
         self.cmdpub.publish(self.cmdmsg)
