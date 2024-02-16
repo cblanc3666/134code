@@ -72,6 +72,9 @@ GRIP_QDOT_INIT = 0.0
 Q_COLLISION_THRESHOLD = 0.07 # TODO
 QDOT_COLLISION_THRESHOLD = 0.5 # TODO
 
+# track height to grab at
+TRACK_DEPTH = 0.09
+
 #
 #   Vanderbot Node Class
 #
@@ -158,7 +161,8 @@ class VanderNode(Node):
         self.fbksub = self.create_subscription(
             Point, '/point', self.recvpoint, 10)
         
-        # self.track
+        self.track = self.create_subscription(
+            Pose, '/StraightTrack', self.recvtrack, 10)
         
         # #Create subscriber to circle message
         # self.circle_pos = None
@@ -227,6 +231,12 @@ class VanderNode(Node):
         z = pointmsg.z
         
         self.gotopoint(x, y, z)
+    
+    def recvtrack(self, posemsg):
+        x = posemsg.position.x
+        y = posemsg.position.y
+        z = TRACK_DEPTH
+        self.gotopoint(x,y,z)
 
 
     def gotopoint(self, x, y, z):
@@ -392,10 +402,16 @@ class VanderNode(Node):
                                                    ArmState.HOLD.duration,
                                                    space='Joint'))
                 # gripper closes
-                ArmState.HOLD.segments.append(Goto5(np.array(self.grip_q_des),
-                                        CLOSED_GRIP,
-                                        ArmState.HOLD.duration,
-                                        space='Joint'))
+                if abs(self.grip_q_des - IDLE_GRIP) < 0.1:
+                    ArmState.HOLD.segments.append(Goto5(np.array(self.grip_q_des),
+                                            CLOSED_GRIP,
+                                            ArmState.HOLD.duration,
+                                            space='Joint'))
+                else:
+                    ArmState.HOLD.segments.append(Goto5(np.array(self.grip_q_des),
+                                            IDLE_GRIP,
+                                            ArmState.HOLD.duration,
+                                            space='Joint'))
 
         elif self.arm_state == ArmState.IDLE:
             q = IDLE_POS
