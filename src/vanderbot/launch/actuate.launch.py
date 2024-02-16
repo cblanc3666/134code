@@ -30,7 +30,7 @@ def generate_launch_description():
     rvizcfg = os.path.join(pkgdir('vanderbot'), 'rviz/viewurdf.rviz')
 
     # Locate/load the robot's URDF file (XML).
-    urdf = os.path.join(pkgdir('vanderbot'), 'urdf/threedofexample.urdf') # TODO UPDATE
+    urdf = os.path.join(pkgdir('vanderbot'), 'urdf/vanderbot.urdf') # TODO UPDATE
     with open(urdf, 'r') as file:
         robot_description = file.read()
 

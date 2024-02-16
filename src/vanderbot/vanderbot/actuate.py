@@ -14,9 +14,9 @@ from rclpy.node                 import Node
 from sensor_msgs.msg            import JointState
 from geometry_msgs.msg          import Point, Pose, Quaternion
 
-from basic134.Segments          import Hold, Stay, Goto5, QuinticSpline
-from basic134.KinematicChain    import KinematicChain
-from basic134.TransformHelpers  import *
+from vanderbot.Segments          import Hold, Stay, Goto5, QuinticSpline
+from vanderbot.KinematicChain    import KinematicChain
+from vanderbot.TransformHelpers  import *
 from std_msgs.msg               import Float32
 
 # ros2 topic pub -1 /point geometry_msgs/msg/Point "{x: 0.2, y: 0.3, z: 0.1}"
@@ -54,10 +54,10 @@ class ArmState(Enum):
 
 
 # Holding position over the table
-IDLE_POS = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # TODO
+IDLE_POS = [0.0, np.pi/2, 1.8, 0.0, 0.0, 0.0] # TODO tweak this
 
 # Initial joint velocity (should be zero)
-QDOT_INIT = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # TODO
+QDOT_INIT = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 # magnitude of the joint space divergence (||real - des||) that constitutes a 
 # collision
@@ -82,7 +82,8 @@ class VanderNode(Node):
     arm_state = ArmState.START # initialize state machine
 
 
-    grav = 1.65 # TODO
+    grav_elbow = -6 # elbow torque constant
+    grav_shoulder = 12.5 # shoulder torque constant
 
     # Initialization.
     def __init__(self, name):
@@ -145,14 +146,13 @@ class VanderNode(Node):
         self.get_logger().info("Running %s" % name)
         self.chain = KinematicChain('world', 'tip', self.jointnames()) # TODO add tip to URDF
 
-        self.numbersub = self.create_subscription(Float32, '/number', self.cb_number, 1)
-
+        
         # Pick the convergence bandwidth.
         self.lam = 20.0
 
     def jointnames(self):
         # Return a list of joint names FOR THE EXPECTED URDF!
-        return ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']
+        return ['base', 'shoulder', 'elbow', 'wrist', 'twist']
 
     # Shutdown
     def shutdown(self):
@@ -212,10 +212,6 @@ class VanderNode(Node):
         # Report.
         #self.get_logger().info("Going to point %r, %r, %r" % (x,y,z))
     
-    def cb_number(self, msg):
-        self.grav = msg.data
-        self.get_logger().info("Received: %r gravity" % msg.data)
-
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):
         
@@ -231,45 +227,50 @@ class VanderNode(Node):
         self.cmdmsg.header.stamp = self.get_clock().now().to_msg()
         self.cmdmsg.name         = ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']
         self.cmdmsg.velocity     = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        self.cmdmsg.effort       = [0.0, self.grav * -np.sin(self.position[1]), 0.0] # TODO
+        
+        # gravity compensation
+        # cosine of shoulder angle minus (because they are oriented opposite) elbow angle
+        tau_elbow = self.grav_elbow * np.cos(self.position[1] - self.position[2])
+        tau_shoulder = -tau_elbow + self.grav_shoulder * np.cos(self.position[1])
+        self.cmdmsg.effort       = [0.0, tau_shoulder, tau_elbow, 0.0, 0.0, 0.0]
 
         # Code for turning off effort to test gravity
         # nan = float("nan")
-        # self.cmdmsg.position = (nan, nan, nan)
-        # self.cmdmsg.velocity = (nan, nan, nan)
+        # self.cmdmsg.position = (nan, nan, nan, nan, nan, nan)
+        # self.cmdmsg.velocity = (nan, nan, nan, nan, nan, nan)
         # self.cmdpub.publish(self.cmdmsg)
         # return
 
         # self.get_logger().info("position: %r" % self.position)
         # self.get_logger().info("qdes: %r" % self.q_des)
 
-        # collision checking TODO
-        if np.linalg.norm(ep(np.array(self.q_des), self.position)) > Q_COLLISION_THRESHOLD or \
-           np.linalg.norm(ep(np.array(self.qdot_des), self.qdot)) > QDOT_COLLISION_THRESHOLD:
+        # # collision checking TODO
+        # if np.linalg.norm(ep(np.array(self.q_des), self.position)) > Q_COLLISION_THRESHOLD or \
+        #    np.linalg.norm(ep(np.array(self.qdot_des), self.qdot)) > QDOT_COLLISION_THRESHOLD:
             
-            if self.arm_state == ArmState.RETURN or self.arm_state == ArmState.GOTO: # only detect collisions while moving
-                (ptip, _, _, _) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
+        #     if self.arm_state == ArmState.RETURN or self.arm_state == ArmState.GOTO: # only detect collisions while moving
+        #         (ptip, _, _, _) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
                 
-                # stay put, then try to go home
-                ArmState.HOLD.segments.append(Hold(ptip, 
-                                                   ArmState.HOLD.duration,
-                                                   space='Joint'))
+        #         # stay put, then try to go home
+        #         ArmState.HOLD.segments.append(Hold(ptip, 
+        #                                            ArmState.HOLD.duration,
+        #                                            space='Joint'))
                 
-                ArmState.RETURN.segments = [] # clear it out just in case
-                ArmState.GOTO.segments = []
-                ArmState.RETURN.segments.append(Goto5(np.array(self.position), 
-                                                      np.array(IDLE_POS), 
-                                                      ArmState.RETURN.duration,
-                                                      space='Joint'))
+        #         ArmState.RETURN.segments = [] # clear it out just in case
+        #         ArmState.GOTO.segments = []
+        #         ArmState.RETURN.segments.append(Goto5(np.array(self.position), 
+        #                                               np.array(IDLE_POS), 
+        #                                               ArmState.RETURN.duration,
+        #                                               space='Joint'))
 
-                self.arm_state = ArmState.HOLD
-                self.seg_start_time = time
-                self.collided = False
+        #         self.arm_state = ArmState.HOLD
+        #         self.seg_start_time = time
+        #         self.collided = False
 
-                self.get_logger().info("COLLISION DETECTED")
+        #         self.get_logger().info("COLLISION DETECTED")
             
-            else:
-                pass # do nothing if collision detected on hold or idle or start
+        #     else:
+        #         pass # do nothing if collision detected on hold or idle or start
 
         pd = None
         vd = None

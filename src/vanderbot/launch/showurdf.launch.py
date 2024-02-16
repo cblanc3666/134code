@@ -78,7 +78,7 @@ def generate_launch_description():
         output     = 'screen',
         parameters = [{'family':   'robotlab'},
                       {'motors':   ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']},
-                      {'joints':   ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']}],
+                      {'joints':   ['base', 'shoulder', 'elbow', 'wrist', 'twist','gripper']}],
         on_exit    = Shutdown())
 
 
@@ -91,6 +91,6 @@ def generate_launch_description():
         # Use RVIZ to view the URDF commanded by the GUI.
         node_robot_state_publisher_ACTUAL,
         node_rviz,
-        # node_gui,
+        node_gui,
         node_hebi,
     ])
