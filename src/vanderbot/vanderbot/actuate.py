@@ -27,6 +27,7 @@ from std_msgs.msg               import Float32
 RATE = 100.0            # transmit rate, in Hertz
 gamma = 0.1
 
+
 #   States the arm can be in
 #   Duration concerns length of spline in each state
 class ArmState(Enum):
@@ -42,7 +43,7 @@ class ArmState(Enum):
 
     # TODO remove unused states. add gripper state with spline
     START = 10.0, []  # initial state
-    GOTO  = 20.0, []  # moving to a commanded point, either from IDLE_POS or a 
+    GOTO  = 10.0, []  # moving to a commanded point, either from IDLE_POS or a 
                     # previously commanded point
     RETURN = 15.0, [] # moving back to IDLE_POS, either because no other point has 
                     # been commanded or because the next point is too far from
@@ -56,6 +57,7 @@ class ArmState(Enum):
 # Holding position over the table
 IDLE_POS = [0.0, 1.4, 1.4, 0.0, 0.0] # TODO tweak this
 IDLE_GRIP = 0.0
+CLOSED_GRIP = -0.8 
 IDLE_ALPHA = 0.0
 IDLE_BETA = 0.0
 
@@ -125,6 +127,11 @@ class VanderNode(Node):
                                      np.array([self.position0[0], IDLE_POS[1], self.position0[2], self.position0[3], self.position0[4]]),
                                      ArmState.START.duration,
                                      space='Joint'))
+        
+        ArmState.START.segments.append(Goto5(np.array(self.grip_position0),
+                                        IDLE_GRIP,
+                                        ArmState.START.duration,
+                                        space='Joint'))
 
         # Create a message and publisher to send the joint commands.
         self.cmdmsg = JointState()
@@ -150,6 +157,8 @@ class VanderNode(Node):
         
         self.fbksub = self.create_subscription(
             Point, '/point', self.recvpoint, 10)
+        
+        # self.track
         
         # #Create subscriber to circle message
         # self.circle_pos = None
@@ -218,6 +227,7 @@ class VanderNode(Node):
         z = pointmsg.z
         
         self.gotopoint(x, y, z)
+
 
     def gotopoint(self, x, y, z):
         if self.arm_state != ArmState.IDLE: 
@@ -311,15 +321,20 @@ class VanderNode(Node):
         if self.arm_state == ArmState.START:
             # Evaluate p and v at time using the first cubic spline
             (q, qdot) = ArmState.START.segments[0].evaluate(time)
+            (qgrip, qdotgrip) = ArmState.START.segments[1].evaluate(time)
 
             self.q_des = list(q)
             self.qdot_des = list(qdot)
 
-            if time >= ArmState.START.duration: # once done, moving to IDLE_POS
+            self.grip_q_des = qgrip
+            self.grip_qdot_des = qdotgrip
+
+            if time >= ArmState.START.duration: # once dozne, moving to IDLE_POS
                 self.arm_state = ArmState.RETURN
                 self.seg_start_time = time
                 
                 ArmState.START.segments.pop(0) # remove the segment since we're done
+                ArmState.START.segments.pop(0)
 
                 # Sets up next spline since base and elbow joints start at arbitrary positions
                 ArmState.RETURN.segments.append(Goto5(np.array(self.q_des), 
@@ -343,10 +358,15 @@ class VanderNode(Node):
         elif self.arm_state == ArmState.HOLD: 
             # Waiting at commanded point - end of previous spline
             (pd, vd) = ArmState.HOLD.segments[0].evaluate(time - self.seg_start_time)
-            
+
+            (qgrip, qdotgrip) = ArmState.HOLD.segments[1].evaluate(time - self.seg_start_time)
+            self.grip_q_des = qgrip
+            self.grip_qdot_des = qdotgrip
+
             if time - self.seg_start_time >= ArmState.HOLD.duration:
                 self.seg_start_time = time
                 ArmState.HOLD.segments.pop(0) # remove the segment since we're done
+                ArmState.HOLD.segments.pop(0) # remove the gripper segment since we're done
                 
                 if len(ArmState.GOTO.segments) > 0: # more places to go
                     self.arm_state = ArmState.GOTO
@@ -371,6 +391,11 @@ class VanderNode(Node):
                 ArmState.HOLD.segments.append(Hold(pd, 
                                                    ArmState.HOLD.duration,
                                                    space='Joint'))
+                # gripper closes
+                ArmState.HOLD.segments.append(Goto5(np.array(self.grip_q_des),
+                                        CLOSED_GRIP,
+                                        ArmState.HOLD.duration,
+                                        space='Joint'))
 
         elif self.arm_state == ArmState.IDLE:
             q = IDLE_POS
