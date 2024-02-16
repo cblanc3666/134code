@@ -214,6 +214,7 @@ class VanderNode(Node):
     
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):
+        self.get_logger().info(str(self.arm_state))
         
         # self.get_logger().info("Current state %r" % self.arm_state)
         # Time since start
@@ -226,7 +227,7 @@ class VanderNode(Node):
 
         self.cmdmsg.header.stamp = self.get_clock().now().to_msg()
         self.cmdmsg.name         = ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']
-        self.cmdmsg.velocity     = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        self.cmdmsg.velocity     = QDOT_INIT
         
         # gravity compensation
         # cosine of shoulder angle minus (because they are oriented opposite) elbow angle
@@ -341,7 +342,7 @@ class VanderNode(Node):
 
         elif self.arm_state == ArmState.IDLE:
             q = IDLE_POS
-            qdot = [0.0, 0.0, 0.0]
+            qdot = QDOT_INIT
             self.q_des = list(q)
             self.qdot_des = list(qdot)
 

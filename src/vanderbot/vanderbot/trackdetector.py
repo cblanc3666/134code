@@ -126,6 +126,8 @@ class DetectorNode(Node):
             for i in range(4):
                 uvMarkers[markerIds[i]-1,:] = np.mean(markerCorners[i], axis=1)
 
+            uvMarkersUndistorted = cv2.undistortPoints(uvMarkers, K, D) #TODO need this back
+
             # Calculate the matching World coordinates of the 4 Aruco markers.
             DX = 0.708
             DY = 0.303
@@ -133,13 +135,13 @@ class DetectorNode(Node):
                                     [(-DX, DY), (DX, DY), (-DX, -DY), (DX, -DY)]])
 
             # Create the perspective transform.
-            M = cv2.getPerspectiveTransform(uvMarkers, xyMarkers)
+            M = cv2.getPerspectiveTransform(uvMarkersUndistorted, xyMarkers)
 
             # Map the object in question.
             uvObj = np.float32([u, v])
 
             #Undistort coords 
-            # uvObj = cv2.undistortPoints(uvObj, K, D) #TODO need this back
+            uvObj = cv2.undistortPoints(uvObj, K, D) #TODO need this back
             xyObj = cv2.perspectiveTransform(uvObj.reshape(1,1,2), M).reshape(2)
 
             # Mark the detected coordinates.
