@@ -42,8 +42,8 @@ class ArmState(Enum):
         self.segments = segments
 
     # TODO remove unused states. add gripper state with spline
-    START = 10.0, []  # initial state
-    GOTO  = 10.0, []  # moving to a commanded point, either from IDLE_POS or a 
+    START = 8.0, []  # initial state
+    GOTO  = 8.0, []  # moving to a commanded point, either from IDLE_POS or a 
                     # previously commanded point
     RETURN = 15.0, [] # moving back to IDLE_POS, either because no other point has 
                     # been commanded or because the next point is too far from
@@ -229,17 +229,19 @@ class VanderNode(Node):
         x = pointmsg.x
         y = pointmsg.y
         z = pointmsg.z
-        
+
         self.gotopoint(x, y, z)
     
     def recvtrack(self, posemsg):
         x = posemsg.position.x
         y = posemsg.position.y
         z = TRACK_DEPTH
-        self.gotopoint(x,y,z)
+        angle = 2 * np.arccos(posemsg.orientation.w)
+        self.get_logger().info("Found track at (%r, %r) with angle %r" % (x, y, angle))
+        self.gotopoint(x,y,z, beta=angle)
 
 
-    def gotopoint(self, x, y, z):
+    def gotopoint(self, x, y, z, beta=0):
         if self.arm_state != ArmState.IDLE: 
             # self.get_logger().info("Already commanded!")
             return
@@ -255,7 +257,7 @@ class VanderNode(Node):
         # insert at position zero because sometimes we already have splines
         # set alpha desired to zero - want to be facing down on table
         ArmState.GOTO.segments.insert(0, Goto5(np.reshape(idle_pos, (-1, 1)), 
-                                               np.reshape([x, y, z, 0, 0], (-1, 1)), 
+                                               np.reshape([x, y, z, 0, beta], (-1, 1)), 
                                                ArmState.GOTO.duration,
                                                space='Task'))
 
