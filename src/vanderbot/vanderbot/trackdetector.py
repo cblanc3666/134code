@@ -5,9 +5,12 @@
 #   Detect Brio train track pieces with OpenCV
 #
 #   Node:           /trackdetector
-#   Subscribers:    /usb_cam/image_raw          Source image
-#   Publishers:     /trackdetector/binary        Intermediate binary image
-#                   /trackdetector/image_raw     Debug (marked up) image
+#   Subscribers:    /ceilcam/image_raw          Source image from overhead cam
+#                   /armcam/image_raw           Source image from arm camera
+#   Publishers:     /trackdetector/ceil_binary  Intermediate ceiling binary image
+#                   /trackdetector/ceil_image_raw  Debug (marked up) ceiling image
+#                   /trackdetector/arm_binary   Intermediate arm binary image
+#                   /trackdetector/arm_image_raw  Debug (marked up) arm image
 #
 import cv2
 import numpy as np
@@ -42,10 +45,17 @@ class DetectorNode(Node):
         
         self.hsvlimits = np.array([[9, 15], [110, 255], [120, 255]])
 
-        # Create a publisher for the processed (debugging) images.
+        # Create a publisher for the processed (debugging) ceiling images.
         # Store up to three images, just in case.
-        self.pubrgb = self.create_publisher(Image, name+'/image_raw', 3)
-        self.pubbin = self.create_publisher(Image, name+'/binary',    3)
+        self.ceil_pubrgb = self.create_publisher(Image, name+'/ceil_image_raw', 3)
+        self.ceil_pubbin = self.create_publisher(Image, name+'/ceil_binary',    3)
+
+        # Create a publisher for the processed (debugging) arm images.
+        # Store up to three images, just in case.
+        self.arm_pubrgb = self.create_publisher(Image, name+'/arm_image_raw', 3)
+        self.arm_pubbin = self.create_publisher(Image, name+'/arm_binary',    3)
+
+        # Publish data on tracks detected
         self.rect_pose = self.create_publisher(Pose, "/StraightTrack", 3)
 
 
@@ -53,37 +63,66 @@ class DetectorNode(Node):
         self.bridge = cv_bridge.CvBridge()
 
         # Create a temporary handler to grab the rectification info.
-        def cb(msg):
-            self.camD = np.array(msg.d).reshape(5)
-            self.camK = np.array(msg.k).reshape((3,3))
-            self.camw = msg.width
-            self.camh = msg.height
-            self.caminfoready = True
+        def cb_ceil(msg):
+            self.ceil_camD = np.array(msg.d).reshape(5)
+            self.ceil_camK = np.array(msg.k).reshape((3,3))
+            self.ceil_camw = msg.width
+            self.ceil_camh = msg.height
+            self.ceil_caminfoready = True
+
+        def cb_arm(msg):
+            self.arm_camD = np.array(msg.d).reshape(5)
+            self.arm_camK = np.array(msg.k).reshape((3,3))
+            self.arm_camw = msg.width
+            self.arm_camh = msg.height
+            self.arm_caminfoready = True
+        
             
         # Temporarily subscribe to get just one message.
         self.get_logger().info("Waiting for camera info...")
-        sub = self.create_subscription(CameraInfo, '/usb_cam/camera_info', cb, 1)
-        self.caminfoready = False
-        while not self.caminfoready:
+        sub = self.create_subscription(CameraInfo, '/ceilcam/camera_info', cb_ceil, 1)
+        self.ceil_caminfoready = False
+        while not self.ceil_caminfoready:
             rclpy.spin_once(self)
         self.destroy_subscription(sub)
 
-        # Report the camera calibration parameters.
-        self.get_logger().info("Received Distortion: \n %s" % (self.camD))
-        self.get_logger().info("Received Camera Matrix: \n %s" % (self.camK))
-        self.get_logger().info("Image size is (%7.2f, %7.2f)" %
-        (float(self.camw), float(self.camh)))
-        self.get_logger().info("Image center at (%7.2f, %7.2f)" %
-        (self.camK[0][2], self.camK[1][2]))
-        self.get_logger().info("FOV %6.2fdeg horz, %6.2fdeg vert" %
-        (np.rad2deg(2*np.arctan(self.camw/2/self.camK[0][0])),
-        np.rad2deg(2*np.arctan(self.camh/2/self.camK[1][1]))))
+        # # Temporarily subscribe to get just one message. TODO uncomment this once the arm camera is calibrated
+        # self.get_logger().info("Waiting for camera info...")
+        # sub = self.create_subscription(CameraInfo, '/armcam/camera_info', cb_arm, 1)
+        # self.arm_caminfoready = False
+        # while not self.arm_caminfoready:
+        #     rclpy.spin_once(self)
+        # self.destroy_subscription(sub)
+
+        # # Report the ceiling camera calibration parameters.
+        # self.get_logger().info("Received Distortion: \n %s" % (self.ceil_camD))
+        # self.get_logger().info("Received Camera Matrix: \n %s" % (self.ceil_camK))
+        # self.get_logger().info("Image size is (%7.2f, %7.2f)" %
+        # (float(self.ceil_camw), float(self.ceil_camh)))
+        # self.get_logger().info("Image center at (%7.2f, %7.2f)" %
+        # (self.ceil_camK[0][2], self.ceil_camK[1][2]))
+        # self.get_logger().info("FOV %6.2fdeg horz, %6.2fdeg vert" %
+        # (np.rad2deg(2*np.arctan(self.ceil_camw/2/self.ceil_camK[0][0])),
+        # np.rad2deg(2*np.arctan(self.ceil_camh/2/self.ceil_camK[1][1]))))
+
+        # # Report the arm camera calibration parameters.
+        # self.get_logger().info("Received Distortion: \n %s" % (self.arm_camD))
+        # self.get_logger().info("Received Camera Matrix: \n %s" % (self.arm_camK))
+        # self.get_logger().info("Image size is (%7.2f, %7.2f)" %
+        # (float(self.arm_camw), float(self.arm_camh)))
+        # self.get_logger().info("Image center at (%7.2f, %7.2f)" %
+        # (self.arm_camK[0][2], self.arm_camK[1][2]))
+        # self.get_logger().info("FOV %6.2fdeg horz, %6.2fdeg vert" %
+        # (np.rad2deg(2*np.arctan(self.arm_camw/2/self.arm_camK[0][0])),
+        # np.rad2deg(2*np.arctan(self.arm_camh/2/self.arm_camK[1][1]))))
 
         # Finally, subscribe to the incoming image topic.  Using a
         # queue size of one means only the most recent message is
         # stored for the next subscriber callback.
         self.sub = self.create_subscription(
-            Image, '/image_raw', self.process, 1)
+            Image, '/ceil_image_raw', self.ceil_process, 1)
+        
+        # TODO add processor function and subscription to /arm_image_raw
 
         # Report.
         self.get_logger().info("Track detector running...")
@@ -159,8 +198,8 @@ class DetectorNode(Node):
 
             return xyObj
 
-    # Process the image (detect the track).
-    def process(self, msg):
+    # Process the ceiling camera image (detect the track).
+    def ceil_process(self, msg):
         # Confirm the encoding and report.
         assert(msg.encoding == "rgb8")
         # self.get_logger().info(
@@ -252,11 +291,11 @@ class DetectorNode(Node):
             box = np.int0(cv2.boxPoints(rotatedrectangle))
             #self.get_logger().info(str(box))
             cv2.drawContours(frame, [box], 0, self.red, 2)
-            rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, self.camK, self.camD, angle = angle)
+            rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, self.ceil_camK, self.ceil_camD, angle = angle)
             world_coords = []
             for coord in box:
                 transformed_pt = self.pixelToWorld(frame, coord[0], coord[1], x0, y0, markerCorners,
-                                                   markerIds, self.camK, self.camD, angle = angle, annotateImage=False)
+                                                   markerIds, self.ceil_camK, self.ceil_camD, angle = angle, annotateImage=False)
                 world_coords.append(transformed_pt)
 
             norm1 = 0
@@ -314,10 +353,12 @@ class DetectorNode(Node):
             self.rect_pose.publish(pose_msg)
 
         # Convert the frame back into a ROS image and republish.
-        self.pubrgb.publish(self.bridge.cv2_to_imgmsg(frame, "rgb8"))
+        self.ceil_pubrgb.publish(self.bridge.cv2_to_imgmsg(frame, "rgb8"))
+        # self.arm_pubrgb.publish(self.bridge.cv2_to_imgmsg(frame, "rgb8")) TODO replace frame with arm image
 
         # Also publish the binary (black/white) image.
-        self.pubbin.publish(self.bridge.cv2_to_imgmsg(binary))
+        self.ceil_pubbin.publish(self.bridge.cv2_to_imgmsg(binary))
+        # self.arm_pubbin.publish(self.bridge.cv2_to_imgmsg(binary)) TODO replace binary with arm image
 
 
 #

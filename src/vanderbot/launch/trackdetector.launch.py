@@ -17,8 +17,10 @@ from launch_ros.actions                import Node
 # from camera_config import CameraConfig, USB_CAM_DIR
 USB_CAM_DIR = pkgdir('usb_cam')
 
-with open(Path(USB_CAM_DIR, 'config', 'ceil_cam_params.yaml'), 'r') as stream:
-    ceil_cam_params = yaml.safe_load(stream)['ceil_cam_params']
+with open(Path(USB_CAM_DIR, 'config', 'cam_params.yaml'), 'r') as stream:
+    params =  yaml.safe_load(stream)
+    ceil_cam_params = params['ceil_cam_params']
+    arm_cam_params = params['arm_cam_params']
 
 #
 # Generate the Launch Description
@@ -28,14 +30,24 @@ def generate_launch_description():
     ######################################################################
     # PREPARE THE LAUNCH ELEMENTS
 
-    # Configure the USB camera node
-    node_usbcam = Node(
+    # Configure the ceiling camera node
+    node_ceilcam = Node(
         name       = 'usb_cam', 
         package    = 'usb_cam',
         executable = 'usb_cam_node_exe',
-        namespace  = 'usb_cam',
+        namespace  = 'ceilcam',
         output     = 'screen',
         parameters = ceil_cam_params,
+    )
+
+    # Configure the arm camera node
+    node_armcam = Node(
+        name       = 'usb_cam', 
+        package    = 'usb_cam',
+        executable = 'usb_cam_node_exe',
+        namespace  = 'armcam',
+        output     = 'screen',
+        parameters = arm_cam_params,
     )
 
     # Configure the demo detector node
@@ -44,7 +56,8 @@ def generate_launch_description():
         package    = 'vanderbot',
         executable = 'trackdetector',
         output     = 'screen',
-        remappings = [('/image_raw', '/usb_cam/image_raw')])
+        remappings = [('/ceil_image_raw', '/ceilcam/image_raw'),
+                      ('/arm_image_raw', '/armcam/image_raw')])
 
 
     ######################################################################
@@ -54,7 +67,8 @@ def generate_launch_description():
     return LaunchDescription([
 
         # Start the nodes.
-        node_usbcam,
+        node_ceilcam,
+        node_armcam,
         node_trackdetector,
         # TODO need to add node for end effector camera
     ])
