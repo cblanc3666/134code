@@ -288,11 +288,11 @@ class DetectorNode(Node):
             if norm1 <= norm2:
                 delta_y = world_coords[1][1] - world_coords[2][1]
                 delta_x = world_coords[1][0] - world_coords[2][0]
-                world_angle = np.arctan(delta_y / delta_x)
+                world_angle = np.arctan(delta_y/ delta_x)
             else:
                 delta_y = world_coords[0][1] - world_coords[1][1]
                 delta_x = world_coords[0][0] - world_coords[1][0]
-                world_angle = np.arctan(delta_y / delta_x)
+                world_angle = np.arctan(delta_y/ delta_x)
             # pt1 = rectCenter[1]
             # delta_y = pt1[1] - yc
             # delta_x = pt1[0] - xc

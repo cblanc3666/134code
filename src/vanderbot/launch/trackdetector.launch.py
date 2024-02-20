@@ -4,6 +4,7 @@
 """
 
 import os
+import yaml
 import xacro
 from pathlib import Path
 
@@ -15,6 +16,9 @@ from launch_ros.actions                import Node
 
 # from camera_config import CameraConfig, USB_CAM_DIR
 USB_CAM_DIR = pkgdir('usb_cam')
+
+with open(Path(USB_CAM_DIR, 'config', 'ceil_cam_params.yaml'), 'r') as stream:
+    ceil_cam_params = yaml.safe_load(stream)['ceil_cam_params']
 
 #
 # Generate the Launch Description
@@ -31,24 +35,7 @@ def generate_launch_description():
         executable = 'usb_cam_node_exe',
         namespace  = 'usb_cam',
         output     = 'screen',
-        # param_path=Path(USB_CAM_DIR, 'config', 'params_1.yaml'),
-        parameters = [{'camera_name':         'logitech'},
-                      {'video_device':        '/dev/video0'},
-                      {'pixel_format':        'yuyv2rgb'},
-                      {'image_width':         640},
-                      {'image_height':        480},
-                      {'framerate':           15.0},
-                      {'brightness':          175}, # -1
-                      {'contrast':            150}, # -1
-                      {'saturation':          128}, # -1
-                      {'sharpness':           200}, # -1
-                      {'gain':                1}, # -1
-                      {'auto_white_balance':  False},
-                      {'white_balance':       4000},
-                      {'autoexposure':        False},
-                      {'exposure':            100},
-                      {'autofocus':           True},
-                      {'focus':               -1}]
+        parameters = ceil_cam_params,
     )
 
     # Configure the demo detector node
