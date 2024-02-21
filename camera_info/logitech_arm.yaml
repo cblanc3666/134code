@@ -1,1 +1,26 @@
-#TODO
+image_width: 640
+image_height: 480
+camera_name: logitech_arm
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [684.18723,   0.     , 306.33352,
+           0.     , 692.9726 , 209.69216,
+           0.     ,   0.     ,   1.     ]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.098203, -0.073999, -0.027362, 0.001941, 0.000000]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1., 0., 0.,
+         0., 1., 0.,
+         0., 0., 1.]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [708.87115,   0.     , 307.01342,   0.     ,
+           0.     , 704.16876, 199.32164,   0.     ,
+           0.     ,   0.     ,   1.     ,   0.     ]

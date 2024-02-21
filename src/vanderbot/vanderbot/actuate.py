@@ -27,6 +27,8 @@ from std_msgs.msg               import Float32
 RATE = 100.0            # transmit rate, in Hertz
 gamma = 0.1
 
+def wrap(angle, fullrange):
+    return angle - fullrange * round(angle/fullrange)
 
 #   States the arm can be in
 #   Duration concerns length of spline in each state
@@ -41,7 +43,6 @@ class ArmState(Enum):
         self.duration = duration
         self.segments = segments
 
-    # TODO remove unused states. add gripper state with spline
     START = 8.0, []  # initial state
     GOTO  = 8.0, []  # moving to a commanded point, either from IDLE_POS or a 
                     # previously commanded point
@@ -55,7 +56,7 @@ class ArmState(Enum):
 
 
 # Holding position over the table
-IDLE_POS = [0.0, 1.4, 1.4, 0.0, 0.0] # TODO tweak this
+IDLE_POS = [0.0, 1.4, 1.4, 0.0, 0.0]
 IDLE_GRIP = 0.0
 CLOSED_GRIP = -0.8 
 IDLE_ALPHA = 0.0
@@ -74,6 +75,18 @@ QDOT_COLLISION_THRESHOLD = 0.5 # TODO
 
 # track height to grab at
 TRACK_DEPTH = 0.09
+
+# final gravity torque values (to attain as gravity is splined in)
+GRAV_ELBOW = -6.5
+GRAV_SHOULDER = 12.5
+
+# gripper closed hand torque value
+TAU_GRIP = -3.15
+
+# arrays indicating which angles (out of base, shoulder, elbow, wrist, twist)
+# contribute to alpha and beta, respectively
+ALPHA_J = np.array([0, 1, 1, 1, 0])
+BETA_J = np.array([1, 0, 0, 0, 1])
 
 #
 #   Vanderbot Node Class
@@ -101,8 +114,8 @@ class VanderNode(Node):
     arm_state = ArmState.START # initialize state machine
 
 
-    grav_elbow = -6.5 # elbow torque constant
-    grav_shoulder = 12.5 # shoulder torque constant
+    grav_elbow = 0 # start elbow torque constant at 0
+    grav_shoulder = 0 # start shoulder torque constant at 0
 
     # Initialization.
     def __init__(self, name):
@@ -135,6 +148,12 @@ class VanderNode(Node):
                                         IDLE_GRIP,
                                         ArmState.START.duration,
                                         space='Joint'))
+        
+        # Spline gravity in gradually
+        ArmState.START.segments.append(Goto5(np.array([self.grav_shoulder, self.grav_elbow]),
+                                             np.array([GRAV_SHOULDER, GRAV_ELBOW]),
+                                             ArmState.START.duration,
+                                             space='Task'))
 
         # Create a message and publisher to send the joint commands.
         self.cmdmsg = JointState()
@@ -236,7 +255,7 @@ class VanderNode(Node):
         x = posemsg.position.x
         y = posemsg.position.y
         z = TRACK_DEPTH
-        angle = 2 * np.arccos(posemsg.orientation.w)
+        angle = 2 * np.arcsin(posemsg.orientation.z)
         self.get_logger().info("Found track at (%r, %r) with angle %r" % (x, y, angle))
         self.gotopoint(x,y,z, beta=angle)
 
@@ -283,8 +302,8 @@ class VanderNode(Node):
         # cosine of shoulder angle minus (because they are oriented opposite) elbow angle
         tau_elbow = self.grav_elbow * np.cos(self.position[1] - self.position[2])
         tau_shoulder = -tau_elbow + self.grav_shoulder * np.cos(self.position[1])
-        tau_grip = -3.15
-        self.cmdmsg.effort       = [0.0, tau_shoulder, tau_elbow, 0.0, 0.0, tau_grip]
+        tau_grip = TAU_GRIP
+        self.cmdmsg.effort       = list([0.0, tau_shoulder, tau_elbow, 0.0, 0.0, tau_grip])
 
         # Code for turning off effort to test gravity
         # nan = float("nan")
@@ -303,7 +322,7 @@ class VanderNode(Node):
         #     if self.arm_state == ArmState.RETURN or self.arm_state == ArmState.GOTO: # only detect collisions while moving
         #         (ptip, _, _, _) = self.chain.fkin(np.reshape(self.position, (-1, 1)))
                 
-        #         alpha = self.position[1]-self.position[2]+self.position[3] # TODO check if the signs on these are correct
+        #         alpha = self.position[1]-self.position[2]+self.position[3] 
         #         beta = self.position[0]-self.position[4] # base minus twist
         #         ptip = np.vstack((ptip, alpha, beta))
         #         # stay put, then try to go home
@@ -341,12 +360,21 @@ class VanderNode(Node):
             self.grip_q_des = qgrip
             self.grip_qdot_des = qdotgrip
 
+            # evaluate gravity constants too
+            self.grav_shoulder = ArmState.START.segments[2].evaluate(time)[0][0] # first index takes "position" from spline
+            self.grav_elbow = ArmState.START.segments[2].evaluate(time)[0][1]
+
             if time >= ArmState.START.duration: # once dozne, moving to IDLE_POS
                 self.arm_state = ArmState.RETURN
                 self.seg_start_time = time
                 
                 ArmState.START.segments.pop(0) # remove the segment since we're done
-                ArmState.START.segments.pop(0)
+                ArmState.START.segments.pop(0) # remove joint spline
+                ArmState.START.segments.pop(0) # remove the gravity spline
+
+                # set gravity constants to their final values
+                self.grav_elbow = GRAV_ELBOW
+                self.grav_shoulder = GRAV_SHOULDER
 
                 # Sets up next spline since base and elbow joints start at arbitrary positions
                 ArmState.RETURN.segments.append(Goto5(np.array(self.q_des), 
@@ -438,7 +466,7 @@ class VanderNode(Node):
             (ptip_des, _, Jv, _) = self.chain.fkin(np.reshape(self.q_des, (-1, 1)))
             
             # extract alpha and beta directly from joint space
-            alpha = self.q_des[1]-self.q_des[2]+self.q_des[3] # TODO check if the signs on these are correct
+            alpha = self.q_des[1]-self.q_des[2]+self.q_des[3] 
             beta = self.q_des[0]-self.q_des[4] # base minus twist
 
             ptip_des = np.vstack((ptip_des, alpha, beta))

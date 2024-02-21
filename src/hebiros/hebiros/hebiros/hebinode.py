@@ -293,6 +293,7 @@ class HebiNode(Node):
     # Watchdog callback
     def watchdogCB(self):
         self.get_logger().warn("Not getting HEBI feedback - check connection")
+        self.shutdown() # we kill the HEBI node if we ever hit red button
 
 
 

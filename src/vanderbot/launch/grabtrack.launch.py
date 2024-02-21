@@ -22,7 +22,9 @@ from launch_ros.actions                import Node
 USB_CAM_DIR = pkgdir('usb_cam')
 
 with open(Path(USB_CAM_DIR, 'config', 'cam_params.yaml'), 'r') as stream:
-    ceil_cam_params = yaml.safe_load(stream)['ceil_cam_params']
+    params =  yaml.safe_load(stream)
+    ceil_cam_params = params['ceil_cam_params']
+    arm_cam_params = params['arm_cam_params']
 
 #
 # Generate the Launch Description
@@ -134,7 +136,8 @@ def generate_launch_description():
         package    = 'vanderbot',
         executable = 'trackdetector',
         output     = 'screen',
-        remappings = [('/image_raw', '/ceilcam/image_raw')])
+        remappings = [('/ceil_image_raw', '/ceilcam/image_raw'),
+                      ('/arm_image_raw', '/armcam/image_raw')])
 
 
     ######################################################################

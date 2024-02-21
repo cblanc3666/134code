@@ -34,6 +34,7 @@ class DetectorNode(Node):
     blue   = (  0,   0, 255)
     yellow = (255, 255,   0)
     white  = (255, 255, 255)
+    MIN_RECT_AREA = 800
 
     # Initialization.
     def __init__(self, name):
@@ -43,7 +44,7 @@ class DetectorNode(Node):
         # Thresholds in Hmin/max, Smin/max, Vmin/max TODO
         # self.hsvlimits = np.array([[60, 86], [13, 70], [65, 83]])
         
-        self.hsvlimits = np.array([[9, 15], [110, 255], [120, 255]])
+        self.hsvlimits = np.array([[9, 24], [138, 255], [120, 255]])
 
         # Create a publisher for the processed (debugging) ceiling images.
         # Store up to three images, just in case.
@@ -265,6 +266,8 @@ class DetectorNode(Node):
                 #rotated_rect = cv2.boxPoints(cnt)
                 rect_area = rotated_rect[1][0] * rotated_rect[1][1]
                 #self.get_logger().info(str(rect_area))
+                #cv2.drawContours(frame, [np.int0(cv2.boxPoints(rotated_rect))], 0, self.yellow, 2)
+                #self.get_logger().info(str(rect_area))
                 rect_ratio = cnt_area /rect_area
 
                 # aspect ratio of contour, if large then its a rectangle
@@ -285,17 +288,23 @@ class DetectorNode(Node):
         if len(rectangles) > 0:
             largest_rotated_rectangle = max(rectangles, key=cv2.contourArea)
             rotatedrectangle = cv2.minAreaRect(largest_rotated_rectangle)
+            max_rect_area = rotatedrectangle[1][0] * rotatedrectangle[1][1]
+                
+            #self.get_logger().info(str(max_rect_area))
             ((um, vm), (wm, hm), angle) = cv2.minAreaRect(largest_rotated_rectangle)
             
             # Draw the largest rotated rectangle on the original image
             box = np.int0(cv2.boxPoints(rotatedrectangle))
             #self.get_logger().info(str(box))
+            cv2.circle(frame, (int(um), int(vm)), 1, self.blue, 2)
             cv2.drawContours(frame, [box], 0, self.red, 2)
+            if wm < hm:
+                angle += 90
             rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, self.ceil_camK, self.ceil_camD, angle = angle)
             world_coords = []
             for coord in box:
                 transformed_pt = self.pixelToWorld(frame, coord[0], coord[1], x0, y0, markerCorners,
-                                                   markerIds, self.ceil_camK, self.ceil_camD, angle = angle, annotateImage=False)
+                                                markerIds, self.ceil_camK, self.ceil_camD, angle = angle, annotateImage=False)
                 world_coords.append(transformed_pt)
 
             norm1 = 0
@@ -316,9 +325,8 @@ class DetectorNode(Node):
             #                 "Found Rectangle enclosed by width %d and height %d about (%d,%d)" %
             #                 (wm, hm, rectCenter[0], rectCenter[1]))
     
-    
         # Report the mapping.
-        if rectCenter is None:
+        if rectCenter is None or max_rect_area < self.MIN_RECT_AREA:
             # self.get_logger().info("Unable to execute rectangle mapping")
             pass
         else:
@@ -327,11 +335,12 @@ class DetectorNode(Node):
             if norm1 <= norm2:
                 delta_y = world_coords[1][1] - world_coords[2][1]
                 delta_x = world_coords[1][0] - world_coords[2][0]
-                world_angle = np.arctan(delta_y/ delta_x)
+                world_angle = np.pi - np.arctan(delta_y / delta_x)
             else:
                 delta_y = world_coords[0][1] - world_coords[1][1]
                 delta_x = world_coords[0][0] - world_coords[1][0]
-                world_angle = np.arctan(delta_y/ delta_x)
+                world_angle = np.arctan(delta_y / delta_x)
+            #self.get_logger().info(str(world_angle * 180 / np.pi))
             # pt1 = rectCenter[1]
             # delta_y = pt1[1] - yc
             # delta_x = pt1[0] - xc
