@@ -42,7 +42,7 @@ class DetectorNode(Node):
         super().__init__(name)
 
         # Thresholds in Hmin/max, Smin/max, Vmin/max TODO        
-        self.hsvlimits = np.array([[9, 24], [138, 255], [120, 255]])
+        self.hsvlimits = np.array([[4, 18], [80, 255], [120, 255]])
 
         # Create a publisher for the processed (debugging) ceiling images.
         # Store up to three images, just in case.
@@ -265,7 +265,7 @@ class DetectorNode(Node):
                 #rotated_rect = cv2.boxPoints(cnt)
                 rect_area = rotated_rect[1][0] * rotated_rect[1][1]
                 #self.get_logger().info(str(rect_area))
-                #cv2.drawContours(frame, [np.int0(cv2.boxPoints(rotated_rect))], 0, self.yellow, 2)
+                cv2.drawContours(frame, [np.int0(cv2.boxPoints(rotated_rect))], 0, self.yellow, 2)
                 #self.get_logger().info(str(rect_area))
                 rect_ratio = cnt_area /rect_area
 
