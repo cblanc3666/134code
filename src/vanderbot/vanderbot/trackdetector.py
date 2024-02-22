@@ -463,6 +463,7 @@ class DetectorNode(Node):
             cv2.drawContours(frame, [box], 0, self.red, 2)
             if wm < hm:
                 angle += 90
+            #TODO will need to change pixeltoworld or write another function because the arm camera doesn't need arucos
             rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, self.ceil_camK, self.ceil_camD, angle = angle)
             world_coords = []
             for coord in box:
