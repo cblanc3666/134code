@@ -46,17 +46,17 @@
                 {'image_width':         640},
                 {'image_height':        480},
                 {'framerate':           15.0},
-                {'brightness':          175},
-                {'contrast':            150},
-                {'saturation':          128},
+                {'brightness':          170},
+                {'contrast':            80},
+                {'saturation':          120},
                 {'sharpness':           200},
-                {'gain':                1},
+                {'gain':                5},
                 {'auto_white_balance':  False},
                 {'white_balance':       4000},
                 {'autoexposure':        False},
-                {'exposure':            100},
+                {'exposure':            120},
                 {'autofocus':           False},
-                {'focus':               150}]
+                {'focus':               100}]
 
 # old yaml file stuff
 # /**:

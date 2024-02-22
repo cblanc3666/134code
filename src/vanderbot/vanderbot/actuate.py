@@ -404,18 +404,24 @@ class VanderNode(Node):
             self.grip_qdot_des = qdotgrip
 
             if time - self.seg_start_time >= ArmState.HOLD.duration:
-                self.seg_start_time = time
-                ArmState.HOLD.segments.pop(0) # remove the segment since we're done
-                ArmState.HOLD.segments.pop(0) # remove the gripper segment since we're done
+                # TEMPORARY CHANGE TO TEST ARM CAMERA. DELETE BELOW ONCE DONE
+                (pd, vd) = ArmState.HOLD.segments[0].evaluate(ArmState.HOLD.duration) # HOLD POSITION WITH ARM CLOSED
+                self.grip_q_des = CLOSED_GRIP
+                self.grip_qdot_des = GRIP_QDOT_INIT # KEEP GRIPPER CLOSED
+
+                # TEMPORARY CHANGE TO TEST ARM CAMERA. UNCOMMENT BELOW ONCE DONE
+                # self.seg_start_time = time
+                # ArmState.HOLD.segments.pop(0) # remove the segment since we're done
+                # ArmState.HOLD.segments.pop(0) # remove the gripper segment since we're done
                 
-                if len(ArmState.GOTO.segments) > 0: # more places to go
-                    self.arm_state = ArmState.GOTO
-                else:
-                    self.arm_state = ArmState.RETURN
-                    ArmState.RETURN.segments.append(Goto5(np.array(self.q_des), 
-                                                          np.array(IDLE_POS), 
-                                                          ArmState.RETURN.duration,
-                                                          space='Joint'))
+                # if len(ArmState.GOTO.segments) > 0: # more places to go
+                #     self.arm_state = ArmState.GOTO
+                # else:
+                #     self.arm_state = ArmState.RETURN
+                #     ArmState.RETURN.segments.append(Goto5(np.array(self.q_des), 
+                #                                           np.array(IDLE_POS), 
+                #                                           ArmState.RETURN.duration,
+                #                                           space='Joint'))
 
         elif self.arm_state == ArmState.GOTO:
             # Moving to commanded point
