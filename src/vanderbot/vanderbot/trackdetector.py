@@ -45,8 +45,8 @@ class DetectorNode(Node):
         # Thresholds in Hmin/max, Smin/max, Vmin/max TODO        
         self.hsvlimits_orange = np.array([[4, 18], [80, 255], [30, 255]])
         self.hsvlimits_pink = np.array([[150, 180], [80, 255], [120, 255]])
-        self.hsvlimits_purple = np.array([[150, 180], [80, 255], [120, 255]])
-        self.hsvlimits_green = np.array([[18, 150], [80, 255], [120, 255]])
+        self.hsvlimits_purple = np.array([[150, 180], [80, 255], [72, 255]])
+        self.hsvlimits_green = np.array([[18, 150], [80, 255], [72, 255]])
 
         # Create a publisher for the processed (debugging) ceiling images.
         # Store up to three images, just in case.
@@ -62,9 +62,9 @@ class DetectorNode(Node):
 
         # Publish data on tracks detected
         self.rect_pose = self.create_publisher(Pose, "/StraightTrack", 3)
-        self.purple_rect = self.create_publisher(Pose, "/PurpleRect", 3)
+        self.purple_circ = self.create_publisher(Point, "/PurpleCirc", 3)
         self.green_rect = self.create_publisher(Pose, "/GreenRect", 3)
-        self.rect_diff = self.create_publisher(Pose, "/RectDiff", 3) #Difference in centers and angle of purple and green rectangles in pixel space
+        self.pg_diff = self.create_publisher(Point, "/PurpleGreenDiff", 3) #Difference in centers of purple and green rectangles in pixel space
 
         # Set up the OpenCV bridge.
         self.bridge = cv_bridge.CvBridge()
@@ -404,7 +404,7 @@ class DetectorNode(Node):
         vc = H//2
 
         green_rectCenter = None
-        purple_rectCenter = None
+        purple_circCenter = None
 
         # Mark the center of the image.
         cv2.circle(frame, (uc, vc), 5, self.red, -1)
@@ -441,19 +441,42 @@ class DetectorNode(Node):
         # Only proceed if at least one contour was found.  You may
         # also want to loop over the contours...
         green_rectangles =[]
-        purple_rectangles = []
+        purple_circles = []
         if len(contours_purple) > 0:
             for cnt in contours_purple:
-                rotated_rect = cv2.minAreaRect(cnt)
-                rect_area = rotated_rect[1][0] * rotated_rect[1][1]
-                cv2.drawContours(frame, [np.int0(cv2.boxPoints(rotated_rect))], 0, self.yellow, 2)
+                #cnt_area = cv2.contourArea(cnt)
+                # Find the enclosing circle (convert to pixel values)
+                ((ur, vr), radius) = cv2.minEnclosingCircle(cnt)
+                ur     = int(ur)
+                vr     = int(vr)
+                radius = int(radius)
+
+                # Draw the circle (yellow) and centroid (red) on the
+                # original image.
+                cv2.circle(frame, (ur, vr), int(radius), self.yellow,  1)
+                cv2.circle(frame, (ur, vr), 5,           self.red,    -1)
+                # comparing min rectangle and contour areas
+                # not used rn
+                #rotated_rect = cv2.minAreaRect(cnt)
+                #rotated_rect = cv2.boxPoints(cnt)
+                #rect_area = rotated_rect[1][0] * rotated_rect[1][1]
+                #self.get_logger().info(str(rect_area))
+                #cv2.drawContours(frame, [np.int0(cv2.boxPoints(rotated_rect))], 0, self.yellow, 2)
+                #self.get_logger().info(str(rect_area))
+                #rect_ratio = cnt_area /rect_area
 
                 # aspect ratio of contour, if large then its a rectangle
                 # works better than area comparison for rects
-                ((cx, cy), (width, height), angle) = rotated_rect
+                #((cx, cy), (width, height), angle) = rotated_rect
+
+                # if width > height:
+                #     aspect_ratio = width / height
+                # else:
+                #     aspect_ratio = height / width
 
                 # if aspect_ratio > 1.1:
-                purple_rectangles.append(cnt) 
+                #     rectangles.append(cnt)
+                purple_circles.append(cnt)
 
         if len(contours_green) > 0:
             for cnt in contours_green:
@@ -477,19 +500,12 @@ class DetectorNode(Node):
             green_rectCenter = (u_green, v_green)
             # circle_center = self.pixelToWorld(frame, u, v, x0, y0, markerCorners, markerIds, self.ceil_camK, self.ceil_camD)
 
-        if len(purple_rectangles) > 0:
-            largest_rect = max(purple_rectangles, key=cv2.contourArea)
-            rotatedrectangle = cv2.minAreaRect(largest_rect)
-            ((u_purple, v_purple), (wm, hm), angle_purple) = cv2.minAreaRect(largest_rect)
-            
-        #     # Draw the largest rotated rectangle on the original image
-            box = np.int0(cv2.boxPoints(rotatedrectangle))
-        #     #self.get_logger().info(str(box))
-        #     cv2.circle(frame, (int(um), int(vm)), 1, self.blue, 2)
-            cv2.drawContours(frame, [box], 0, self.red, 2)
-            purple_rectCenter = (u_purple, v_purple)
-            # if wm < hm:
-            #     angle += 90
+        if len(purple_circles) > 0:
+            largest_circle = max(purple_circles, key = cv2.contourArea)
+            ((u_purple, v_purple), _) = cv2.minEnclosingCircle(largest_circle)
+            purple_circCenter = (u_purple, v_purple)
+       
+        
         #     #TODO will need to change pixeltoworld or write another function because the arm camera doesn't need arucos
         #     rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, self.ceil_camK, self.ceil_camD, angle = angle)
         #     world_coords = []
@@ -533,40 +549,25 @@ class DetectorNode(Node):
             green_pose_msg.position = green_rect_pt
             green_pose_msg.orientation = green_rect_angle
             self.green_rect.publish(green_pose_msg)
-            self.get_logger().info(f"GreenCenter {u_green}, {v_green} at angle = {angle_green}")
+            # self.get_logger().info(f"GreenCenter {u_green}, {v_green} at angle = {angle_green}")
 
-        if purple_rectCenter is None:
+        if purple_circCenter is None:
             pass
         else:
-            purple_pose_msg = Pose()
-            purple_rect_pt = Point()
-            purple_rect_angle = Quaternion()
-            purple_rect_pt.x = float(u_purple)
-            purple_rect_pt.y = float(v_purple)
-            purple_rect_pt.z = 0.0
-            purple_rect_angle.x = 0.0
-            purple_rect_angle.y = 0.0
-            purple_rect_angle.z = float(np.sin(angle_purple / 2))
-            purple_rect_angle.w = float(np.cos(angle_purple / 2))
-            purple_pose_msg.position = purple_rect_pt
-            purple_pose_msg.orientation = purple_rect_angle
-            self.purple_rect.publish(purple_pose_msg)
-            self.get_logger().info(f"PurpleCenter {u_purple}, {v_purple} at angle = {angle_purple}")
+            point_msg = Point()
+            point_msg.x = float(u_purple)
+            point_msg.y = float(v_purple)
+            point_msg.z = 0.0
+            # self.get_logger().info(f"PurpleCenter {u_purple}, {v_purple}")
+            self.purple_circ.publish(point_msg)
 
-        if green_rectCenter and purple_rectCenter is not None:
-            diff_pose_msg = Pose()
-            diff_rect_pt = Point()
-            diff_rect_angle = Quaternion()
-            diff_rect_pt.x = float(u_purple - u_green)
-            diff_rect_pt.y = float(v_purple - v_green)
-            diff_rect_pt.z = 0.0
-            diff_rect_angle.x = 0.0
-            diff_rect_angle.y = 0.0
-            diff_rect_angle.z = float(np.sin((angle_purple - angle_green)/ 2))
-            diff_rect_angle.w = float(np.cos((angle_purple - angle_green)/ 2))
-            diff_pose_msg.position = diff_rect_pt
-            diff_pose_msg.orientation = diff_rect_angle
-            self.rect_diff.publish(diff_pose_msg)
+        if green_rectCenter and purple_circCenter is not None:
+            pg_diff_pt = Point()
+            pg_diff_pt.x = float(u_purple - u_green)
+            pg_diff_pt.y = float(v_purple - v_green)
+            pg_diff_pt.z = 0.0
+            self.get_logger().info(f"Purple Green Diff {pg_diff_pt.x}, {pg_diff_pt.y}")
+            self.pg_diff.publish(pg_diff_pt)
 
 
         # if rectCenter is None or max_rect_area < self.MIN_RECT_AREA:
