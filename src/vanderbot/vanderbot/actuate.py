@@ -62,6 +62,8 @@ CLOSED_GRIP = -0.8
 IDLE_ALPHA = 0.0
 IDLE_BETA = 0.0
 
+# TRACK_OFFSET = 0.2
+
 # Initial joint velocity (should be zero)
 QDOT_INIT = [0.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -273,6 +275,13 @@ class VanderNode(Node):
         
         idle_pos = np.vstack((idle_pos, IDLE_ALPHA, IDLE_BETA))
 
+        # Arm Closed
+        # if abs(self.grip_q_des - IDLE_GRIP) > 0.1:
+        #     x -= np.sin(beta) * TRACK_OFFSET
+        #     y -= np.cos(beta) * TRACK_OFFSET
+        #     z += 0.07
+        #     z += 0.0
+
         # insert at position zero because sometimes we already have splines
         # set alpha desired to zero - want to be facing down on table
         ArmState.GOTO.segments.insert(0, Goto5(np.reshape(idle_pos, (-1, 1)), 
@@ -405,23 +414,23 @@ class VanderNode(Node):
 
             if time - self.seg_start_time >= ArmState.HOLD.duration:
                 # TEMPORARY CHANGE TO TEST ARM CAMERA. DELETE BELOW ONCE DONE
-                (pd, vd) = ArmState.HOLD.segments[0].evaluate(ArmState.HOLD.duration) # HOLD POSITION WITH ARM CLOSED
-                self.grip_q_des = CLOSED_GRIP
-                self.grip_qdot_des = GRIP_QDOT_INIT # KEEP GRIPPER CLOSED
+                # (pd, vd) = ArmState.HOLD.segments[0].evaluate(ArmState.HOLD.duration) # HOLD POSITION WITH ARM CLOSED
+                # self.grip_q_des = CLOSED_GRIP
+                # self.grip_qdot_des = GRIP_QDOT_INIT # KEEP GRIPPER CLOSED
 
                 # TEMPORARY CHANGE TO TEST ARM CAMERA. UNCOMMENT BELOW ONCE DONE
-                # self.seg_start_time = time
-                # ArmState.HOLD.segments.pop(0) # remove the segment since we're done
-                # ArmState.HOLD.segments.pop(0) # remove the gripper segment since we're done
+                self.seg_start_time = time
+                ArmState.HOLD.segments.pop(0) # remove the segment since we're done
+                ArmState.HOLD.segments.pop(0) # remove the gripper segment since we're done
                 
-                # if len(ArmState.GOTO.segments) > 0: # more places to go
-                #     self.arm_state = ArmState.GOTO
-                # else:
-                #     self.arm_state = ArmState.RETURN
-                #     ArmState.RETURN.segments.append(Goto5(np.array(self.q_des), 
-                #                                           np.array(IDLE_POS), 
-                #                                           ArmState.RETURN.duration,
-                #                                           space='Joint'))
+                if len(ArmState.GOTO.segments) > 0: # more places to go
+                    self.arm_state = ArmState.GOTO
+                else:
+                    self.arm_state = ArmState.RETURN
+                    ArmState.RETURN.segments.append(Goto5(np.array(self.q_des), 
+                                                          np.array(IDLE_POS), 
+                                                          ArmState.RETURN.duration,
+                                                          space='Joint'))
 
         elif self.arm_state == ArmState.GOTO:
             # Moving to commanded point

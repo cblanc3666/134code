@@ -43,19 +43,26 @@ class DetectorNode(Node):
 
         # Thresholds in Hmin/max, Smin/max, Vmin/max TODO        
         self.hsvlimits = np.array([[4, 18], [80, 255], [120, 255]])
+        self.hsvlimits_pink = np.array([[150, 180], [80, 255], [120, 255]])
+        self.hsvlimits_purple = np.array([[150, 180], [80, 255], [120, 255]])
+        self.hsvlimits_green = np.array([[18, 150], [80, 255], [120, 255]])
 
         # Create a publisher for the processed (debugging) ceiling images.
         # Store up to three images, just in case.
         self.ceil_pubrgb = self.create_publisher(Image, name+'/ceil_image_raw', 3)
         self.ceil_pubbin = self.create_publisher(Image, name+'/ceil_binary',    3)
+        self.ceil_pubbinp = self.create_publisher(Image, name+'/ceil_binary_pink',    3)
 
         # Create a publisher for the processed (debugging) arm images.
         # Store up to three images, just in case.
         self.arm_pubrgb = self.create_publisher(Image, name+'/arm_image_raw', 3)
         self.arm_pubbin = self.create_publisher(Image, name+'/arm_binary',    3)
+        self.arm_pubbin_green = self.create_publisher(Image, name+'/arm_binary_green',    3)
 
         # Publish data on tracks detected
         self.rect_pose = self.create_publisher(Pose, "/StraightTrack", 3)
+        self.circle_point = self.create_publisher(Point, "/CircleLocation", 3)
+        self.green_rect = self.create_publisher(Pose, "/GreenRect", 3)
 
 
         # Set up the OpenCV bridge.
@@ -244,11 +251,23 @@ class DetectorNode(Node):
         binary = cv2.erode( binary, None, iterations=iter)
         binary = cv2.dilate(binary, None, iterations=3*iter)
         binary = cv2.erode( binary, None, iterations=iter)
+        
+        binary_pink = cv2.inRange(hsv, self.hsvlimits_pink[:,0], self.hsvlimits_pink[:,1])
+
+        # Erode and Dilate. Definitely adjust the iterations!
+        iter = 1
+        binary_pink = cv2.erode( binary_pink, None, iterations=iter)
+        binary_pink = cv2.dilate(binary_pink, None, iterations=3*iter)
+        binary_pink = cv2.erode( binary_pink, None, iterations=iter)
 
         # Find contours in the mask and initialize the current
         # (x, y) center of the ball
         (contours, hierarchy) = cv2.findContours(
             binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        (contours_pink, hierarchy) = cv2.findContours(
+            binary_pink, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        contours = contours + contours_pink
         # Draw all contours on the original image for debugging.
         #cv2.drawContours(frame, contours, -1, self.blue, 2)
         
@@ -344,8 +363,8 @@ class DetectorNode(Node):
             # delta_y = pt1[1] - yc
             # delta_x = pt1[0] - xc
             #world_angle = np.arctan2(delta_y, delta_x)
-            self.get_logger().info("Camera pointed at rectangle of (%f,%f)" % (xc, yc))
-            #self.get_logger().info(f"{world_angle * 180 / np.pi}")
+            #self.get_logger().info("Camera pointed at rectangle of (%f,%f)" % (xc, yc))
+            self.get_logger().info(f"{world_angle * 180 / np.pi}")
             pose_msg = Pose()
             rect_pt = Point()
             rect_angle = Quaternion()
@@ -365,6 +384,7 @@ class DetectorNode(Node):
 
         # Also publish the binary (black/white) image.
         self.ceil_pubbin.publish(self.bridge.cv2_to_imgmsg(binary))
+        self.ceil_pubbinp.publish(self.bridge.cv2_to_imgmsg(binary_pink))
 
     def arm_process(self, msg):
         # Confirm the encoding and report.
@@ -401,7 +421,8 @@ class DetectorNode(Node):
         #     "HSV = (%3d, %3d, %3d)" % tuple(hsv[vc, uc]))
 
         # Threshold in Hmin/max, Smin/max, Vmin/max
-        binary = cv2.inRange(hsv, self.hsvlimits[:,0], self.hsvlimits[:,1])
+        binary = cv2.inRange(hsv, self.hsvlimits_purple[:,0], self.hsvlimits_purple[:,1])
+        binary_green = cv2.inRange(hsv, self.hsvlimits_green[:,0], self.hsvlimits_green[:,1])
 
         # Erode and Dilate. Definitely adjust the iterations!
         iter = 1
@@ -409,44 +430,92 @@ class DetectorNode(Node):
         binary = cv2.dilate(binary, None, iterations=3*iter)
         binary = cv2.erode( binary, None, iterations=iter)
 
+        binary_green = cv2.erode( binary_green, None, iterations=iter)
+        binary_green = cv2.dilate(binary_green, None, iterations=3*iter)
+        binary_green = cv2.erode( binary_green, None, iterations=iter)
+
         # Find contours in the mask and initialize the current
         # (x, y) center of the ball
         (contours, hierarchy) = cv2.findContours(
             binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        (contours_green, hierarchy2) = cv2.findContours(
+            binary_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         # Draw all contours on the original image for debugging.
-        #cv2.drawContours(frame, contours, -1, self.blue, 2)
+        # cv2.drawContours(frame, contours_green, -1, self.blue, 2)
         
         # Only proceed if at least one contour was found.  You may
         # also want to loop over the contours...
         rectangles =[]
+        circles = []
         if len(contours) > 0:
             for cnt in contours:
-                cnt_area = cv2.contourArea(cnt)
+                #cnt_area = cv2.contourArea(cnt)
+                # Find the enclosing circle (convert to pixel values)
+                ((ur, vr), radius) = cv2.minEnclosingCircle(cnt)
+                ur     = int(ur)
+                vr     = int(vr)
+                radius = int(radius)
 
+                # Draw the circle (yellow) and centroid (red) on the
+                # original image.
+                cv2.circle(frame, (ur, vr), int(radius), self.yellow,  1)
+                cv2.circle(frame, (ur, vr), 5,           self.red,    -1)
                 # comparing min rectangle and contour areas
                 # not used rn
+                #rotated_rect = cv2.minAreaRect(cnt)
+                #rotated_rect = cv2.boxPoints(cnt)
+                #rect_area = rotated_rect[1][0] * rotated_rect[1][1]
+                #self.get_logger().info(str(rect_area))
+                #cv2.drawContours(frame, [np.int0(cv2.boxPoints(rotated_rect))], 0, self.yellow, 2)
+                #self.get_logger().info(str(rect_area))
+                #rect_ratio = cnt_area /rect_area
+
+                # aspect ratio of contour, if large then its a rectangle
+                # works better than area comparison for rects
+                #((cx, cy), (width, height), angle) = rotated_rect
+
+                # if width > height:
+                #     aspect_ratio = width / height
+                # else:
+                #     aspect_ratio = height / width
+
+                # if aspect_ratio > 1.1:
+                #     rectangles.append(cnt)
+                circles.append(cnt)
+
+        if len(contours_green) > 0:
+            for cnt in contours_green:
                 rotated_rect = cv2.minAreaRect(cnt)
                 #rotated_rect = cv2.boxPoints(cnt)
                 rect_area = rotated_rect[1][0] * rotated_rect[1][1]
                 #self.get_logger().info(str(rect_area))
-                #cv2.drawContours(frame, [np.int0(cv2.boxPoints(rotated_rect))], 0, self.yellow, 2)
+                cv2.drawContours(frame, [np.int0(cv2.boxPoints(rotated_rect))], 0, self.yellow, 2)
                 #self.get_logger().info(str(rect_area))
-                rect_ratio = cnt_area /rect_area
+                #rect_ratio = cnt_area /rect_area
 
                 # aspect ratio of contour, if large then its a rectangle
                 # works better than area comparison for rects
                 ((cx, cy), (width, height), angle) = rotated_rect
 
-                if width > height:
-                    aspect_ratio = width / height
-                else:
-                    aspect_ratio = height / width
+                # if width > height:
+                #     aspect_ratio = width / height
+                # else:
+                #     aspect_ratio = height / width
 
-                if aspect_ratio > 1.1:
-                    rectangles.append(cnt)
-                    
-        markerCorners, markerIds, _ = cv2.aruco.detectMarkers(
-                frame, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50))
+                # if aspect_ratio > 1.1:
+                rectangles.append(cnt)       
+        # markerCorners, markerIds, _ = cv2.aruco.detectMarkers(
+        #         frame, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50))
+
+        circle_center = None
+        rectCenter = None
+
+        if len(circles) > 0:
+            largest_circle = max(circles, key = cv2.contourArea)
+            ((u, v), r) = cv2.minEnclosingCircle(largest_circle)
+            circle_center = (u, v)
+            # circle_center = self.pixelToWorld(frame, u, v, x0, y0, markerCorners, markerIds, self.ceil_camK, self.ceil_camD)
 
         if len(rectangles) > 0:
             largest_rotated_rectangle = max(rectangles, key=cv2.contourArea)
@@ -456,26 +525,27 @@ class DetectorNode(Node):
             #self.get_logger().info(str(max_rect_area))
             ((um, vm), (wm, hm), angle) = cv2.minAreaRect(largest_rotated_rectangle)
             
-            # Draw the largest rotated rectangle on the original image
+        #     # Draw the largest rotated rectangle on the original image
             box = np.int0(cv2.boxPoints(rotatedrectangle))
-            #self.get_logger().info(str(box))
-            cv2.circle(frame, (int(um), int(vm)), 1, self.blue, 2)
+        #     #self.get_logger().info(str(box))
+        #     cv2.circle(frame, (int(um), int(vm)), 1, self.blue, 2)
             cv2.drawContours(frame, [box], 0, self.red, 2)
-            if wm < hm:
-                angle += 90
-            #TODO will need to change pixeltoworld or write another function because the arm camera doesn't need arucos
-            rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, self.ceil_camK, self.ceil_camD, angle = angle)
-            world_coords = []
-            for coord in box:
-                transformed_pt = self.pixelToWorld(frame, coord[0], coord[1], x0, y0, markerCorners,
-                                                markerIds, self.ceil_camK, self.ceil_camD, angle = angle, annotateImage=False)
-                world_coords.append(transformed_pt)
+            rectCenter = (um, vm)
+            # if wm < hm:
+            #     angle += 90
+        #     #TODO will need to change pixeltoworld or write another function because the arm camera doesn't need arucos
+        #     rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, self.ceil_camK, self.ceil_camD, angle = angle)
+        #     world_coords = []
+        #     for coord in box:
+        #         transformed_pt = self.pixelToWorld(frame, coord[0], coord[1], x0, y0, markerCorners,
+        #                                         markerIds, self.ceil_camK, self.ceil_camD, angle = angle, annotateImage=False)
+        #         world_coords.append(transformed_pt)
 
-            norm1 = 0
-            norm2 = 0
-            if world_coords[0] is not None:
-                norm1 = np.linalg.norm(world_coords[0] - world_coords[1])
-                norm2 = np.linalg.norm(world_coords[1] - world_coords[2])
+        #     norm1 = 0
+        #     norm2 = 0
+        #     if world_coords[0] is not None:
+        #         norm1 = np.linalg.norm(world_coords[0] - world_coords[1])
+        #         norm2 = np.linalg.norm(world_coords[1] - world_coords[2])
             #self.get_logger().info(f"{norm1}, {norm2}")
             # self.get_logger().info(str(um))
             # self.get_logger().info(str(vm))
@@ -490,46 +560,75 @@ class DetectorNode(Node):
             #                 (wm, hm, rectCenter[0], rectCenter[1]))
     
         # Report the mapping.
-        if rectCenter is None or max_rect_area < self.MIN_RECT_AREA:
-            # self.get_logger().info("Unable to execute rectangle mapping")
+        if circle_center is None:
             pass
         else:
-            (xc, yc) = rectCenter
-            world_angle = 0
-            if norm1 <= norm2:
-                delta_y = world_coords[1][1] - world_coords[2][1]
-                delta_x = world_coords[1][0] - world_coords[2][0]
-                world_angle = np.pi - np.arctan(delta_y / delta_x)
-            else:
-                delta_y = world_coords[0][1] - world_coords[1][1]
-                delta_x = world_coords[0][0] - world_coords[1][0]
-                world_angle = np.arctan(delta_y / delta_x)
-            #self.get_logger().info(str(world_angle * 180 / np.pi))
-            # pt1 = rectCenter[1]
-            # delta_y = pt1[1] - yc
-            # delta_x = pt1[0] - xc
-            #world_angle = np.arctan2(delta_y, delta_x)
-            self.get_logger().info("Camera pointed at rectangle of (%f,%f)" % (xc, yc))
-            #self.get_logger().info(f"{world_angle * 180 / np.pi}")
+            point_msg = Point()
+            point_msg.x = float(circle_center[0])
+            point_msg.y = float(circle_center[1])
+            point_msg.z = 0.0
+            #self.get_logger().info(f"{circle_center[0]}, {circle_center[1]}")
+            self.circle_point.publish(point_msg)
+
+        if rectCenter is None:
+            pass
+        else:
             pose_msg = Pose()
             rect_pt = Point()
             rect_angle = Quaternion()
-            rect_pt.x = float(xc)
-            rect_pt.y = float(yc)
+            rect_pt.x = float(um)
+            rect_pt.y = float(vm)
             rect_pt.z = 0.0
             rect_angle.x = 0.0
             rect_angle.y = 0.0
-            rect_angle.z = float(np.sin(world_angle / 2))
-            rect_angle.w = float(np.cos(world_angle / 2))
+            rect_angle.z = float(np.sin(angle / 2))
+            rect_angle.w = float(np.cos(angle / 2))
             pose_msg.position = rect_pt
             pose_msg.orientation = rect_angle
-            self.rect_pose.publish(pose_msg)
+            self.green_rect.publish(pose_msg)
+
+
+        # if rectCenter is None or max_rect_area < self.MIN_RECT_AREA:
+        #     # self.get_logger().info("Unable to execute rectangle mapping")
+        #     pass
+        # else:
+        #     (xc, yc) = rectCenter
+        #     world_angle = 0
+        #     if norm1 <= norm2:
+        #         delta_y = world_coords[1][1] - world_coords[2][1]
+        #         delta_x = world_coords[1][0] - world_coords[2][0]
+        #         world_angle = np.pi - np.arctan(delta_y / delta_x)
+        #     else:
+        #         delta_y = world_coords[0][1] - world_coords[1][1]
+        #         delta_x = world_coords[0][0] - world_coords[1][0]
+        #         world_angle = np.arctan(delta_y / delta_x)
+        #     #self.get_logger().info(str(world_angle * 180 / np.pi))
+        #     # pt1 = rectCenter[1]
+        #     # delta_y = pt1[1] - yc
+        #     # delta_x = pt1[0] - xc
+        #     #world_angle = np.arctan2(delta_y, delta_x)
+        #     self.get_logger().info("Camera pointed at rectangle of (%f,%f)" % (xc, yc))
+        #     #self.get_logger().info(f"{world_angle * 180 / np.pi}")
+        #     pose_msg = Pose()
+        #     rect_pt = Point()
+        #     rect_angle = Quaternion()
+        #     rect_pt.x = float(xc)
+        #     rect_pt.y = float(yc)
+        #     rect_pt.z = 0.0
+        #     rect_angle.x = 0.0
+        #     rect_angle.y = 0.0
+        #     rect_angle.z = float(np.sin(world_angle / 2))
+        #     rect_angle.w = float(np.cos(world_angle / 2))
+        #     pose_msg.position = rect_pt
+        #     pose_msg.orientation = rect_angle
+        #     self.rect_pose.publish(pose_msg)
 
         # Convert the frame back into a ROS image and republish.
         self.arm_pubrgb.publish(self.bridge.cv2_to_imgmsg(frame, "rgb8"))
 
         # Also publish the binary (black/white) image.
         self.arm_pubbin.publish(self.bridge.cv2_to_imgmsg(binary))
+        self.arm_pubbin_green.publish(self.bridge.cv2_to_imgmsg(binary_green))
 
 
 #

@@ -30,7 +30,7 @@
                 {'framerate':           15.0},
                 {'brightness':          150},
                 {'contrast':            100},
-                {'saturation':          250},
+                {'saturation':          350},
                 {'sharpness':           200},
                 {'gain':                1},
                 {'auto_white_balance':  False},
@@ -52,9 +52,9 @@
                 {'sharpness':           200},
                 {'gain':                5},
                 {'auto_white_balance':  False},
-                {'white_balance':       5800},
+                {'white_balance':       5500},
                 {'autoexposure':        False},
-                {'exposure':            150},
+                {'exposure':            130},
                 {'autofocus':           False},
                 {'focus':               110}]
 
