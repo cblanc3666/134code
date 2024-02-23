@@ -12,7 +12,7 @@ from enum import Enum
 
 from rclpy.node                 import Node
 from sensor_msgs.msg            import JointState
-from geometry_msgs.msg          import Point, Pose, Quaternion
+from geometry_msgs.msg          import Point, Pose, Quaternion, Polygon
 
 from vanderbot.Segments          import Hold, Stay, Goto5, QuinticSpline
 from vanderbot.KinematicChain    import KinematicChain
@@ -182,8 +182,15 @@ class VanderNode(Node):
         self.fbksub = self.create_subscription(
             Point, '/point', self.recvpoint, 10)
         
-        self.track = self.create_subscription(
-            Pose, '/StraightTrack', self.recvtrack, 10)
+        self.orange_track = self.create_subscription(
+            Pose, '/StraightTrackOrange', self.recvtrack_orange, 10)
+        
+        self.pink_track = self.create_subscription(
+            Pose, '/StraightTrackPink', self.recvtrack_pink, 10)
+        
+        self.green_rect = self.create_subscription(
+            Polygon, '/GreenRect', self.recvgreenrect, 10)
+        
         
         # #Create subscriber to circle message
         # self.circle_pos = None
@@ -197,6 +204,7 @@ class VanderNode(Node):
         # Report.
         self.get_logger().info("Running %s" % name)
         self.chain = KinematicChain('world', 'tip', self.jointnames())
+        # self.cam_chain = KinematicChain('world', 'cam', self.jointnames())
 
         
         # Pick the convergence bandwidth.
@@ -211,6 +219,14 @@ class VanderNode(Node):
         # No particular cleanup, just shut down the node.
         self.destroy_node()
 
+    def arm_pixel_to_position(self, x, y):
+        pass
+        # (pcam, Rcam, _, _) = self.cam_chain.fkin(np.reshape(self.q, (-1, 1)))
+        # z = pcam[2][0]
+        # lamb = -z / np.dot([0, 0, 1], Rcam @ np.array([[x], [y], [1]]))
+
+        # pobj = pcam + Rcam @ np.array([[x], [y], [1]]) * lamb
+        # return pobj
 
     # Grab a single feedback - do not call this repeatedly. For all 6 motors.
     def grabfbk(self):
@@ -253,7 +269,7 @@ class VanderNode(Node):
 
         self.gotopoint(x, y, z)
     
-    def recvtrack(self, posemsg):
+    def recvtrack_orange(self, posemsg):
         x = posemsg.position.x
         y = posemsg.position.y
         z = TRACK_DEPTH
@@ -261,6 +277,22 @@ class VanderNode(Node):
         self.get_logger().info("Found track at (%r, %r) with angle %r" % (x, y, angle))
         self.gotopoint(x,y,z, beta=angle)
 
+    def recvtrack_pink(self, posemsg):
+        x = posemsg.position.x
+        y = posemsg.position.y
+        z = TRACK_DEPTH
+        angle = 2 * np.arcsin(posemsg.orientation.z)
+        self.get_logger().info("Found track at (%r, %r) with angle %r" % (x, y, angle))
+        self.gotopoint(x,y,z, beta=angle)
+    
+    def recvgreenrect(self, msg):
+        pass
+        # ps = []
+        # for corner in msg.points:
+        #     ps.append(self.arm_pixel_to_position(corner.x, corner.y).flatten())
+        # self.get_logger().info("Green rectangle positions: (%r, %r), (%r, %r), (%r, %r), (%r, %r)"
+        #                        % (ps[0][0], ps[0][1], ps[1][0], ps[1][1], ps[2][0], ps[2][1], ps[3][0], ps[3][1]))
+        # self.green_rect_pose()
 
     def gotopoint(self, x, y, z, beta=0):
         if self.arm_state != ArmState.IDLE: 
@@ -414,23 +446,23 @@ class VanderNode(Node):
 
             if time - self.seg_start_time >= ArmState.HOLD.duration:
                 # TEMPORARY CHANGE TO TEST ARM CAMERA. DELETE BELOW ONCE DONE
-                # (pd, vd) = ArmState.HOLD.segments[0].evaluate(ArmState.HOLD.duration) # HOLD POSITION WITH ARM CLOSED
-                # self.grip_q_des = CLOSED_GRIP
-                # self.grip_qdot_des = GRIP_QDOT_INIT # KEEP GRIPPER CLOSED
+                (pd, vd) = ArmState.HOLD.segments[0].evaluate(ArmState.HOLD.duration) # HOLD POSITION WITH ARM CLOSED
+                self.grip_q_des = CLOSED_GRIP
+                self.grip_qdot_des = GRIP_QDOT_INIT # KEEP GRIPPER CLOSED
 
                 # TEMPORARY CHANGE TO TEST ARM CAMERA. UNCOMMENT BELOW ONCE DONE
-                self.seg_start_time = time
-                ArmState.HOLD.segments.pop(0) # remove the segment since we're done
-                ArmState.HOLD.segments.pop(0) # remove the gripper segment since we're done
+                # self.seg_start_time = time
+                # ArmState.HOLD.segments.pop(0) # remove the segment since we're done
+                # ArmState.HOLD.segments.pop(0) # remove the gripper segment since we're done
                 
-                if len(ArmState.GOTO.segments) > 0: # more places to go
-                    self.arm_state = ArmState.GOTO
-                else:
-                    self.arm_state = ArmState.RETURN
-                    ArmState.RETURN.segments.append(Goto5(np.array(self.q_des), 
-                                                          np.array(IDLE_POS), 
-                                                          ArmState.RETURN.duration,
-                                                          space='Joint'))
+                # if len(ArmState.GOTO.segments) > 0: # more places to go
+                #     self.arm_state = ArmState.GOTO
+                # else:
+                #     self.arm_state = ArmState.RETURN
+                #     ArmState.RETURN.segments.append(Goto5(np.array(self.q_des), 
+                #                                           np.array(IDLE_POS), 
+                #                                           ArmState.RETURN.duration,
+                #                                           space='Joint'))
 
         elif self.arm_state == ArmState.GOTO:
             # Moving to commanded point

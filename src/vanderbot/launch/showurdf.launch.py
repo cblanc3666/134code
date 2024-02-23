@@ -90,6 +90,8 @@ def generate_launch_description():
 
         # Use RVIZ to view the URDF commanded by the GUI.
         node_robot_state_publisher_ACTUAL,
+        # node_robot_state_publisher_COMMAND,
+
         node_rviz,
         node_gui,
         node_hebi,
