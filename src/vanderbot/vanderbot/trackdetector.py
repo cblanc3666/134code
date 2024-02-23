@@ -165,6 +165,7 @@ class DetectorNode(Node):
             # Abort if not all markers are detected.
             if (markerIds is None or len(markerIds) != 4 or
                 set(markerIds.flatten()) != set([1,2,3,4])):
+                # self.get_logger().info("Cannot see Aruco")
                 return None
 
 
@@ -426,7 +427,7 @@ class DetectorNode(Node):
             undist_x = float(point[0][0][0])
             undist_y = float(point[0][0][1])
             
-            self.get_logger().info(f"Pink Track Center {undist_x}, {undist_y}")
+            # self.get_logger().info(f"Pink Track Center {undist_x}, {undist_y}")
 
 
 
@@ -460,9 +461,10 @@ class DetectorNode(Node):
     
         # Report the mapping.
         if pink_rectCenter is None or max_rect_area < self.MIN_RECT_AREA:
-            #self.get_logger().info("Unable to execute rectangle mapping-Pink")
+            # self.get_logger().info("Unable to execute rectangle mapping-Pink")
             pass
         else:
+            # self.get_logger().info("Saw Pink track")
             (xc, yc) = pink_rectCenter
             world_angle = 0
             if norm1 <= norm2:

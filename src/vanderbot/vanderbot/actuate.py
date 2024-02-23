@@ -53,6 +53,10 @@ class ArmState(Enum):
     IDLE = None, []  # nothing commanded, arm is at IDLE_POS
     HOLD = 2.0, []   # holding at a commanded point, preparing to return or move to
                     # next point
+    
+    ALIGN = 4.0, []
+    DOWN = 8.0, []
+    RELEASE = 2.0, []
 
 
 # Holding position over the table
@@ -62,7 +66,7 @@ CLOSED_GRIP = -0.8
 IDLE_ALPHA = 0.0
 IDLE_BETA = 0.0
 
-# TRACK_OFFSET = 0.2
+TRACK_OFFSET = 0.17
 
 # Initial joint velocity (should be zero)
 QDOT_INIT = [0.0, 0.0, 0.0, 0.0, 0.0]
@@ -76,19 +80,24 @@ Q_COLLISION_THRESHOLD = 0.07 # TODO
 QDOT_COLLISION_THRESHOLD = 0.5 # TODO
 
 # track height to grab at
-TRACK_DEPTH = 0.09
+TRACK_DEPTH = 0.11
 
 # final gravity torque values (to attain as gravity is splined in)
 GRAV_ELBOW = -6.5
 GRAV_SHOULDER = 12.5
 
 # gripper closed hand torque value
-TAU_GRIP = -3.15
+TAU_GRIP = -6.0
 
 # arrays indicating which angles (out of base, shoulder, elbow, wrist, twist)
 # contribute to alpha and beta, respectively
 ALPHA_J = np.array([0, 1, 1, 1, 0])
 BETA_J = np.array([1, 0, 0, 0, 1])
+
+TRACK_DISPLACEMENT_FORWARDS = 0.08
+TRACK_DISPLACEMENT_SIDE = -0.025
+
+HOVER_HEIGHT = 0.07
 
 #
 #   Vanderbot Node Class
@@ -114,6 +123,8 @@ class VanderNode(Node):
     seg_start_time = 0  # logs the time (relative to start_time) that last segment started
                         # or, if state is IDLE, time that it has been idle
     arm_state = ArmState.START # initialize state machine
+
+    align_position = None
 
 
     grav_elbow = 0 # start elbow torque constant at 0
@@ -204,7 +215,7 @@ class VanderNode(Node):
         # Report.
         self.get_logger().info("Running %s" % name)
         self.chain = KinematicChain('world', 'tip', self.jointnames())
-        # self.cam_chain = KinematicChain('world', 'cam', self.jointnames())
+        self.cam_chain = KinematicChain('world', 'cam', self.jointnames())
 
         
         # Pick the convergence bandwidth.
@@ -220,13 +231,13 @@ class VanderNode(Node):
         self.destroy_node()
 
     def arm_pixel_to_position(self, x, y):
-        pass
-        # (pcam, Rcam, _, _) = self.cam_chain.fkin(np.reshape(self.q, (-1, 1)))
-        # z = pcam[2][0]
-        # lamb = -z / np.dot([0, 0, 1], Rcam @ np.array([[x], [y], [1]]))
+        # pass
+        (pcam, Rcam, _, _) = self.cam_chain.fkin(np.reshape(self.position, (-1, 1)))
+        z = pcam[2][0]
+        lamb = -z / np.dot([0, 0, 1], Rcam @ np.array([[x], [y], [1]]))
 
-        # pobj = pcam + Rcam @ np.array([[x], [y], [1]]) * lamb
-        # return pobj
+        pobj = pcam + Rcam @ np.array([[x], [y], [1]]) * lamb
+        return pobj
 
     # Grab a single feedback - do not call this repeatedly. For all 6 motors.
     def grabfbk(self):
@@ -282,16 +293,45 @@ class VanderNode(Node):
         y = posemsg.position.y
         z = TRACK_DEPTH
         angle = 2 * np.arcsin(posemsg.orientation.z)
-        self.get_logger().info("Found track at (%r, %r) with angle %r" % (x, y, angle))
+        # self.get_logger().info("Found track at (%r, %r) with angle %r" % (x, y, angle))
         self.gotopoint(x,y,z, beta=angle)
+
+    def green_rect_position(self, points):
+        side1 = np.linalg.norm(points[1] - points[0]) + np.linalg.norm(points[2] - points[3])
+        side2 = np.linalg.norm(points[2] - points[1]) + np.linalg.norm(points[3] - points[0])
+        
+        if side1 > side2:
+            long_side = ((points[0] - points[1]) + (points[3] - points[2]))/2
+        else:
+            long_side = ((points[2] - points[1]) + (points[3] - points[0]))/2
+        
+        centroid = np.mean(points, 0)
+        direction_vec = long_side / np.linalg.norm(long_side)
+
+
+        return (centroid, direction_vec)
     
     def recvgreenrect(self, msg):
-        pass
-        # ps = []
-        # for corner in msg.points:
-        #     ps.append(self.arm_pixel_to_position(corner.x, corner.y).flatten())
-        # self.get_logger().info("Green rectangle positions: (%r, %r), (%r, %r), (%r, %r), (%r, %r)"
-        #                        % (ps[0][0], ps[0][1], ps[1][0], ps[1][1], ps[2][0], ps[2][1], ps[3][0], ps[3][1]))
+        # pass
+        positions = []
+        for corner in msg.points:
+            positions.append(self.arm_pixel_to_position(corner.x, corner.y))
+        
+        (centroid, direction) = self.green_rect_position(positions)
+        direction_90 = np.array([[-direction[1][0]], [direction[0][0]], [direction[2][0]]])
+        
+
+        align_point = centroid + direction * TRACK_DISPLACEMENT_FORWARDS
+        align_point += direction_90 * TRACK_DISPLACEMENT_SIDE
+        
+        self.align_position = align_point
+        self.align_position[2][0] = TRACK_DEPTH + HOVER_HEIGHT
+
+        (ptip, _, _, _) = self.chain.fkin(self.position)
+        # self.get_logger().info("Tip position, Target position: (%r, %r), (%r, %r)"
+        #                        % (ptip[0][0], ptip[1][0], align_point[0][0], align_point[1][0]))
+        
+        
         # self.green_rect_pose()
 
     def gotopoint(self, x, y, z, beta=0):
@@ -308,11 +348,11 @@ class VanderNode(Node):
         idle_pos = np.vstack((idle_pos, IDLE_ALPHA, IDLE_BETA))
 
         # Arm Closed
-        # if abs(self.grip_q_des - IDLE_GRIP) > 0.1:
-        #     x -= np.sin(beta) * TRACK_OFFSET
-        #     y -= np.cos(beta) * TRACK_OFFSET
-        #     z += 0.07
-        #     z += 0.0
+        if abs(self.grip_q_des - IDLE_GRIP) > 0.1:
+            x -= np.sin(beta) * TRACK_OFFSET
+            y -= np.cos(beta) * TRACK_OFFSET
+            z += HOVER_HEIGHT
+            # z += 0.0
 
         # insert at position zero because sometimes we already have splines
         # set alpha desired to zero - want to be facing down on table
@@ -323,6 +363,8 @@ class VanderNode(Node):
 
         # Report.
         #self.get_logger().info("Going to point %r, %r, %r" % (x,y,z))
+
+        
     
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):        
@@ -446,49 +488,155 @@ class VanderNode(Node):
 
             if time - self.seg_start_time >= ArmState.HOLD.duration:
                 # TEMPORARY CHANGE TO TEST ARM CAMERA. DELETE BELOW ONCE DONE
-                (pd, vd) = ArmState.HOLD.segments[0].evaluate(ArmState.HOLD.duration) # HOLD POSITION WITH ARM CLOSED
-                self.grip_q_des = CLOSED_GRIP
-                self.grip_qdot_des = GRIP_QDOT_INIT # KEEP GRIPPER CLOSED
+                # (pd, vd) = ArmState.HOLD.segments[0].evaluate(ArmState.HOLD.duration) # HOLD POSITION WITH ARM CLOSED
+                # self.grip_q_des = CLOSED_GRIP
+                # self.grip_qdot_des = GRIP_QDOT_INIT # KEEP GRIPPER CLOSED
 
                 # TEMPORARY CHANGE TO TEST ARM CAMERA. UNCOMMENT BELOW ONCE DONE
-                # self.seg_start_time = time
-                # ArmState.HOLD.segments.pop(0) # remove the segment since we're done
-                # ArmState.HOLD.segments.pop(0) # remove the gripper segment since we're done
+                self.seg_start_time = time
+                ArmState.HOLD.segments.pop(0) # remove the segment since we're done
+                ArmState.HOLD.segments.pop(0) # remove the gripper segment since we're done
                 
-                # if len(ArmState.GOTO.segments) > 0: # more places to go
-                #     self.arm_state = ArmState.GOTO
-                # else:
-                #     self.arm_state = ArmState.RETURN
-                #     ArmState.RETURN.segments.append(Goto5(np.array(self.q_des), 
-                #                                           np.array(IDLE_POS), 
-                #                                           ArmState.RETURN.duration,
-                #                                           space='Joint'))
+                if len(ArmState.GOTO.segments) > 0: # more places to go
+                    self.arm_state = ArmState.GOTO
+                else:
+                    self.arm_state = ArmState.RETURN
+                    ArmState.RETURN.segments.append(Goto5(np.array(self.q_des), 
+                                                          np.array(IDLE_POS), 
+                                                          ArmState.RETURN.duration,
+                                                          space='Joint'))
+
+#             
 
         elif self.arm_state == ArmState.GOTO:
             # Moving to commanded point
             (pd, vd) = ArmState.GOTO.segments[0].evaluate(time - self.seg_start_time)
             if time - self.seg_start_time >= ArmState.GOTO.duration:
-                self.arm_state = ArmState.HOLD
-                self.seg_start_time = time
+                ## NON-TRACK ALIGN CODE
 
-                ArmState.GOTO.segments.pop(0) # remove the segment since we're done
-                self.collided = False # successfully finished a goto, reset collision boolean
+                # self.arm_state = ArmState.HOLD
+                # self.seg_start_time = time
 
-                # stay put during hold
-                ArmState.HOLD.segments.append(Hold(pd, 
-                                                   ArmState.HOLD.duration,
-                                                   space='Joint'))
+                # ArmState.GOTO.segments.pop(0) # remove the segment since we're done
+                # self.collided = False # successfully finished a goto, reset collision boolean
+
+                # # stay put during hold
+                # ArmState.HOLD.segments.append(Hold(pd, 
+                #                                    ArmState.HOLD.duration,
+                #                                    space='Joint'))
+                # # gripper closes
+                # if abs(self.grip_q_des - IDLE_GRIP) < 0.1:
+                #     ArmState.HOLD.segments.append(Goto5(np.array(self.grip_q_des),
+                #                             CLOSED_GRIP,
+                #                             ArmState.HOLD.duration,
+                #                             space='Joint'))
+                # else:
+                #     ArmState.HOLD.segments.append(Goto5(np.array(self.grip_q_des),
+                #                             IDLE_GRIP,
+                #                             ArmState.HOLD.duration,
+                #                             space='Joint'))
+
+                '''NEW TRACK ALIGN CODE'''
                 # gripper closes
                 if abs(self.grip_q_des - IDLE_GRIP) < 0.1:
+                    self.arm_state = ArmState.HOLD
+                    self.seg_start_time = time
+
+                    ArmState.GOTO.segments.pop(0) # remove the segment since we're done
+                    self.collided = False # successfully finished a goto, reset collision boolean
+
+                    # stay put during hold
+                    ArmState.HOLD.segments.append(Hold(pd, 
+                                                    ArmState.HOLD.duration,
+                                                    space='Joint'))
                     ArmState.HOLD.segments.append(Goto5(np.array(self.grip_q_des),
                                             CLOSED_GRIP,
                                             ArmState.HOLD.duration,
                                             space='Joint'))
                 else:
-                    ArmState.HOLD.segments.append(Goto5(np.array(self.grip_q_des),
-                                            IDLE_GRIP,
-                                            ArmState.HOLD.duration,
+                    self.arm_state = ArmState.ALIGN
+                    self.seg_start_time = time
+
+                    ArmState.GOTO.segments.pop(0) # remove the segment since we're done
+                    self.collided = False # successfully finished a goto, reset collision boolean
+
+                    (ptip, _, _, _) = self.chain.fkin(self.q_des)
+
+                    align_goal = self.align_position
+                    align_goal = np.vstack((align_goal, pd[3][0], pd[4][0]))
+
+                    ArmState.ALIGN.segments.append(Goto5(pd, align_goal,
+                                                    ArmState.ALIGN.duration,
+                                                    space='Task'))
+
+                    ArmState.ALIGN.segments.append(Goto5(np.array(self.grip_q_des),
+                                            CLOSED_GRIP, # TODO CHANGE TO IDLE TO OPEN
+                                            ArmState.ALIGN.duration,
                                             space='Joint'))
+
+
+
+        elif self.arm_state == ArmState.ALIGN:
+            (pd, vd) = ArmState.ALIGN.segments[0].evaluate(time - self.seg_start_time)
+
+            (qgrip, qdotgrip) = ArmState.ALIGN.segments[1].evaluate(time - self.seg_start_time)
+            self.grip_q_des = qgrip
+            self.grip_qdot_des = qdotgrip
+
+            if time - self.seg_start_time >= ArmState.ALIGN.duration:
+                self.arm_state = ArmState.DOWN
+                self.seg_start_time = time
+
+                ArmState.ALIGN.segments.pop(0) # remove the segment since we're done
+                self.collided = False # successfully finished a goto, reset collision boolean
+
+                down_goal = np.copy(pd)
+                down_goal[2][0] -= (HOVER_HEIGHT + 0.01)
+
+                ArmState.DOWN.segments.append(Goto5(pd, down_goal,
+                                                ArmState.DOWN.duration,
+                                                space='Task'))
+
+                ArmState.DOWN.segments.append(Goto5(np.array(self.grip_q_des),
+                                        CLOSED_GRIP,
+                                        ArmState.ALIGN.duration,
+                                        space='Joint'))
+        
+        elif self.arm_state == ArmState.DOWN:
+            (pd, vd) = ArmState.DOWN.segments[0].evaluate(time - self.seg_start_time)
+
+            (qgrip, qdotgrip) = ArmState.DOWN.segments[1].evaluate(time - self.seg_start_time)
+            self.grip_q_des = qgrip
+            self.grip_qdot_des = qdotgrip
+
+            if time - self.seg_start_time >= ArmState.DOWN.duration:
+                self.arm_state = ArmState.RELEASE
+                self.seg_start_time = time
+                ArmState.DOWN.segments.pop(0) # remove the segment since we're done
+
+                ArmState.RELEASE.segments.append(Hold(pd, 
+                                                ArmState.RELEASE.duration,
+                                                space='Joint'))
+                ArmState.RELEASE.segments.append(Goto5(np.array(self.grip_q_des),
+                                        IDLE_GRIP,
+                                        ArmState.RELEASE.duration,
+                                        space='Joint'))
+        
+        elif self.arm_state == ArmState.RELEASE:
+            # Waiting at commanded point - end of previous spline
+            (pd, vd) = ArmState.RELEASE.segments[0].evaluate(time - self.seg_start_time)
+
+            (qgrip, qdotgrip) = ArmState.RELEASE.segments[1].evaluate(time - self.seg_start_time)
+            self.grip_q_des = qgrip
+            self.grip_qdot_des = qdotgrip
+
+            if time - self.seg_start_time >= ArmState.RELEASE.duration:
+                # TEMPORARY CHANGE TO TEST ARM CAMERA. DELETE BELOW ONCE DONE
+                (pd, vd) = ArmState.RELEASE.segments[0].evaluate(ArmState.HOLD.duration) # HOLD POSITION WITH ARM CLOSED
+                self.grip_q_des = IDLE_GRIP
+                self.grip_qdot_des = GRIP_QDOT_INIT # KEEP GRIPPER CLOSED
+
+                # TEMPORARY CHANGE TO TEST ARM CAMERA. UNCOMMENT BELOW ONCE DONE
 
         elif self.arm_state == ArmState.IDLE:
             q = IDLE_POS
