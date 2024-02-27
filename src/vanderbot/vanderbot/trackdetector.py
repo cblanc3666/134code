@@ -24,7 +24,7 @@ from rclpy.node         import Node
 from sensor_msgs.msg    import Image
 from geometry_msgs.msg  import Point, Pose2D, Pose, Quaternion, Polygon, Point32
 from sensor_msgs.msg import CameraInfo # get rectification calibration (from checkerboard)
-
+from vanderbot.DetectHelpers  import *
 #
 #  Detector Node Class
 #
@@ -37,92 +37,29 @@ class DetectorNode(Node):
     white  = (255, 255, 255)
     MIN_RECT_AREA = 800
 
+    # Thresholds in Hmin/max, Smin/max, Vmin/max 
+    HSV_ORANGE = np.array([[4, 18], [80, 255], [30, 255]])
+    HSV_PINK = np.array([[150, 180], [80, 255], [120, 255]])
+    HSV_PURPLE = np.array([[160, 180], [140, 255], [120, 255]])
+    HSV_GREEN = np.array([[18, 150], [80, 255], [72, 255]])
+
     # Initialization.
     def __init__(self, name):
         # Initialize the node, naming it as specified
         super().__init__(name)
 
-        # Thresholds in Hmin/max, Smin/max, Vmin/max TODO        
-        self.hsvlimits_orange = np.array([[4, 18], [80, 255], [30, 255]])
-        self.hsvlimits_pink = np.array([[150, 180], [80, 255], [120, 255]])
-        self.hsvlimits_purple = np.array([[160, 180], [140, 255], [120, 255]])
-        self.hsvlimits_green = np.array([[18, 150], [80, 255], [72, 255]])
-
-        # Create a publisher for the processed (debugging) ceiling images.
-        # Store up to three images, just in case.
-        self.ceil_pubrgb = self.create_publisher(Image, name+'/ceil_image_raw', 3)
-        self.ceil_pubbin_orange = self.create_publisher(Image, name+'/ceil_binary_orange',    3)
-        self.ceil_pubbin_pink = self.create_publisher(Image, name+'/ceil_binary_pink',    3)
-
-        # Create a publisher for the processed (debugging) arm images.
-        # Store up to three images, just in case.
-        self.arm_pubrgb = self.create_publisher(Image, name+'/arm_image_raw', 3)
-        self.arm_pubbin_purple = self.create_publisher(Image, name+'/arm_binary_purple',    3)
-        self.arm_pubbin_green = self.create_publisher(Image, name+'/arm_binary_green',    3)
-
-        # Publish data on tracks detected
-        self.rect_pose_orange = self.create_publisher(Pose, "/StraightTrackOrange", 3)
-        self.rect_pose_pink = self.create_publisher(Pose, "/StraightTrackPink", 3)
-        self.purple_circ = self.create_publisher(Point, "/PurpleCirc", 3)
-        self.green_rect = self.create_publisher(Polygon, "/GreenRect", 3)
-        self.pg_diff = self.create_publisher(Point, "/PurpleGreenDiff", 3) #Difference in centers of purple and green rectangles in pixel space
+        # Create publishers, saving 3 images
+        self.create_publishers(name, 3)
 
         # Set up the OpenCV bridge.
         self.bridge = cv_bridge.CvBridge()
-
-        # Create a temporary handler to grab the rectification info.
-        def cb_ceil(msg):
-            self.ceil_camD = np.array(msg.d).reshape(5)
-            self.ceil_camK = np.array(msg.k).reshape((3,3))
-            self.ceil_camw = msg.width
-            self.ceil_camh = msg.height
-            self.ceil_caminfoready = True
-
-        def cb_arm(msg):
-            self.arm_camD = np.array(msg.d).reshape(5)
-            self.arm_camK = np.array(msg.k).reshape((3,3))
-            self.arm_camw = msg.width
-            self.arm_camh = msg.height
-            self.arm_caminfoready = True
         
-            
-        # Temporarily subscribe to get just one message.
-        self.get_logger().info("Waiting for camera info...")
-        sub = self.create_subscription(CameraInfo, '/ceilcam/camera_info', cb_ceil, 1)
-        self.ceil_caminfoready = False
-        while not self.ceil_caminfoready:
-            rclpy.spin_once(self)
-        self.destroy_subscription(sub)
-
-        # # Temporarily subscribe to get just one message.
-        self.get_logger().info("Waiting for camera info...")
-        sub = self.create_subscription(CameraInfo, '/armcam/camera_info', cb_arm, 1)
-        self.arm_caminfoready = False
-        while not self.arm_caminfoready:
-            rclpy.spin_once(self)
-        self.destroy_subscription(sub)
+        # Get camera info
+        self.get_camera_info()    
 
         # # Report the ceiling camera calibration parameters.
-        # self.get_logger().info("Received Distortion: \n %s" % (self.ceil_camD))
-        # self.get_logger().info("Received Camera Matrix: \n %s" % (self.ceil_camK))
-        # self.get_logger().info("Image size is (%7.2f, %7.2f)" %
-        # (float(self.ceil_camw), float(self.ceil_camh)))
-        # self.get_logger().info("Image center at (%7.2f, %7.2f)" %
-        # (self.ceil_camK[0][2], self.ceil_camK[1][2]))
-        # self.get_logger().info("FOV %6.2fdeg horz, %6.2fdeg vert" %
-        # (np.rad2deg(2*np.arctan(self.ceil_camw/2/self.ceil_camK[0][0])),
-        # np.rad2deg(2*np.arctan(self.ceil_camh/2/self.ceil_camK[1][1]))))
-
-        # # Report the arm camera calibration parameters.
-        # self.get_logger().info("Received Distortion: \n %s" % (self.arm_camD))
-        # self.get_logger().info("Received Camera Matrix: \n %s" % (self.arm_camK))
-        # self.get_logger().info("Image size is (%7.2f, %7.2f)" %
-        # (float(self.arm_camw), float(self.arm_camh)))
-        # self.get_logger().info("Image center at (%7.2f, %7.2f)" %
-        # (self.arm_camK[0][2], self.arm_camK[1][2]))
-        # self.get_logger().info("FOV %6.2fdeg horz, %6.2fdeg vert" %
-        # (np.rad2deg(2*np.arctan(self.arm_camw/2/self.arm_camK[0][0])),
-        # np.rad2deg(2*np.arctan(self.arm_camh/2/self.arm_camK[1][1]))))
+        self.report_cal_params("CEILING CAMERA", self.ceil_camD, self.ceil_camK, self.ceil_camw, self.ceil_camh)
+        self.report_cal_params("ARM CAMERA", self.arm_camD, self.arm_camK, self.arm_camw, self.arm_camh)
 
         # Finally, subscribe to the incoming image topic.  Using a
         # queue size of one means only the most recent message is
@@ -136,6 +73,71 @@ class DetectorNode(Node):
         # Report.
         self.get_logger().info("Track detector running...")
 
+    # Create publishers for the processed images and binaries for detectors
+    # Store up to n_images, just in case.
+    def create_publishers(self, name, n_images):
+        self.ceil_pubrgb = self.create_publisher(Image, name+'/ceil_image_raw', n_images)
+        self.ceil_pubbin_orange = self.create_publisher(Image, name+'/ceil_binary_orange', n_images)
+        self.ceil_pubbin_pink = self.create_publisher(Image, name+'/ceil_binary_pink', n_images)
+
+        self.arm_pubrgb = self.create_publisher(Image, name+'/arm_image_raw', n_images)
+        self.arm_pubbin_purple = self.create_publisher(Image, name+'/arm_binary_purple', n_images)
+        self.arm_pubbin_green = self.create_publisher(Image, name+'/arm_binary_green', n_images)
+
+        # Publish data on tracks detected
+        self.rect_pose_orange = self.create_publisher(Pose, "/StraightTrackOrange", n_images)
+        self.rect_pose_pink = self.create_publisher(Pose, "/StraightTrackPink", n_images)
+        self.purple_circ = self.create_publisher(Point, "/PurpleCirc", n_images)
+        self.green_rect = self.create_publisher(Polygon, "/GreenRect", n_images)
+            # Difference in centers of purple and green rectangles in pixel space
+        self.pg_diff = self.create_publisher(Point, "/PurpleGreenDiff", n_images) 
+
+    # Get camera info by subscribing to camera info topic
+    def get_camera_info(self):
+        # Temporarily subscribe to get just one message for each camera.
+        self.get_logger().info("Waiting for camera info...")
+        sub = self.create_subscription(CameraInfo, '/ceilcam/camera_info', self.cb_ceil, 1)
+        self.ceil_caminfoready = False
+        while not self.ceil_caminfoready:
+            rclpy.spin_once(self)
+        self.destroy_subscription(sub)
+
+        self.get_logger().info("Waiting for camera info...")
+        sub = self.create_subscription(CameraInfo, '/armcam/camera_info', self.cb_arm, 1)
+        self.arm_caminfoready = False
+        while not self.arm_caminfoready:
+            rclpy.spin_once(self)
+        self.destroy_subscription(sub)
+
+    # Create a temporary handler to grab the rectification info.
+    def cb_ceil(self, msg):
+        self.ceil_camD = np.array(msg.d).reshape(5)
+        self.ceil_camK = np.array(msg.k).reshape((3,3))
+        self.ceil_camw = msg.width
+        self.ceil_camh = msg.height
+        self.ceil_caminfoready = True
+
+    def cb_arm(self, msg):
+        self.arm_camD = np.array(msg.d).reshape(5)
+        self.arm_camK = np.array(msg.k).reshape((3,3))
+        self.arm_camw = msg.width
+        self.arm_camh = msg.height
+        self.arm_caminfoready = True
+
+    # Report the camera calibration parameters.
+    def report_cal_params(self, cam_name, camD, camK, camw, camh):
+        self.get_logger().info(cam_name + " CALIBRATION PARAMETERS")
+        self.get_logger().info("Received Distortion: \n %s" % (camD))
+        self.get_logger().info("Received Camera Matrix: \n %s" % (camK))
+        self.get_logger().info("Image size is (%7.2f, %7.2f)" %
+        (float(camw), float(camh)))
+        self.get_logger().info("Image center at (%7.2f, %7.2f)" %
+        (camK[0][2], camK[1][2]))
+        self.get_logger().info("FOV %6.2fdeg horz, %6.2fdeg vert" %
+        (np.rad2deg(2*np.arctan(camw/2/camK[0][0])),
+        np.rad2deg(2*np.arctan(camh/2/camK[1][1]))))
+
+
     # Shutdown
     def shutdown(self):
         # No particular cleanup, just shut down the node.
@@ -143,6 +145,7 @@ class DetectorNode(Node):
 
     def pixelToWorld(self, image, u, v, x0, y0, markerCorners, markerIds, K, D, annotateImage=True, angle = None):
             '''
+            Used with the CEILING camera only.
             Convert the (u,v) pixel position into (x,y) world coordinates
             Inputs:
             image: The image as seen by the camera
@@ -189,7 +192,7 @@ class DetectorNode(Node):
             # Map the object in question.
             uvObj = np.float32([u, v])
 
-            #Undistort coords 
+            # Undistort coords 
             uvObj = cv2.undistortPoints(uvObj, K, D) 
             xyObj = cv2.perspectiveTransform(uvObj.reshape(1,1,2), M).reshape(2)
 
@@ -248,7 +251,7 @@ class DetectorNode(Node):
         #     "HSV = (%3d, %3d, %3d)" % tuple(hsv[vc, uc]))
 
         # Threshold in Hmin/max, Smin/max, Vmin/max
-        binary_orange = cv2.inRange(hsv, self.hsvlimits_orange[:,0], self.hsvlimits_orange[:,1])
+        binary_orange = cv2.inRange(hsv, self.HSV_ORANGE[:,0], self.HSV_ORANGE[:,1])
 
         # Erode and Dilate. Definitely adjust the iterations!
         iter = 1
@@ -256,7 +259,7 @@ class DetectorNode(Node):
         binary_orange = cv2.dilate(binary_orange, None, iterations=3*iter)
         binary_orange = cv2.erode( binary_orange, None, iterations=iter)
         
-        binary_pink = cv2.inRange(hsv, self.hsvlimits_pink[:,0], self.hsvlimits_pink[:,1])
+        binary_pink = cv2.inRange(hsv, self.HSV_PINK[:,0], self.HSV_PINK[:,1])
 
         # Erode and Dilate. Definitely adjust the iterations!
         iter = 1
@@ -531,8 +534,8 @@ class DetectorNode(Node):
         frame = cv2.line(frame, (0,vc), (W-1,vc), self.white, 1)
 
         # Threshold in Hmin/max, Smin/max, Vmin/max
-        binary_purple = cv2.inRange(hsv, self.hsvlimits_purple[:,0], self.hsvlimits_purple[:,1])
-        binary_green = cv2.inRange(hsv, self.hsvlimits_green[:,0], self.hsvlimits_green[:,1])
+        binary_purple = cv2.inRange(hsv, self.HSV_PURPLE[:,0], self.HSV_PURPLE[:,1])
+        binary_green = cv2.inRange(hsv, self.HSV_GREEN[:,0], self.HSV_GREEN[:,1])
 
         # Erode and Dilate. Definitely adjust the iterations!
         iter = 1
