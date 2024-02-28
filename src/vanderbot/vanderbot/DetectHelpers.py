@@ -17,13 +17,25 @@
 
     get_largest_green_rect
         Used with arm camera only. Given a list of green rectangles, it obtains 
-        the largest contour and its center and corner locations. 
+        the largest contour and its center. It returns the corner locations. 
+        If no green rect in view, returns None.
 
-   
+    get_largest_purple_circ
+        Used with arm camera only. Finds the largest purple circle in view.
+        It returns the center. If no purple circle in view, returns None.
 
+    get_track
+        Takes rectangular contour of track. Returns world coordinates of its
+        center, as well as its true world angle.
+
+    get_rect_pose_msg
+        Takes rect center and world angle.
+        Prepares and returns a pose message to publish a rectangle.
 '''
 import cv2
 import numpy as np
+
+from geometry_msgs.msg  import Point, Pose2D, Pose, Quaternion, Polygon, Point32
 
 '''
 Creates initial binary for a color, erodes, dilates, and finds contours
@@ -168,34 +180,89 @@ def get_largest_purple_circ(purple_circles, frame, color):
 Used with ceiling camera only. Finds center and world angle of a track.
 Arguments:
     rectangle - a rotated rectangular contour
+    frame     - openCV image to draw on
+    color1    - the color to draw the center of the rectangle
+    color2    - the color to draw the outline of the rectangle
+    pixelToWorld - the function mapping pixel to world space
+    center    - the center of four ArUco. (x0, y0)
+    camK      - K matrix of camera
+    camD      - distortion matrix of camera
+    min_rect_area - minimum area of acceptable rectangle
+    markerCorners - ArUco marker corners
+    markerIds     - IDs of the ArUco markers
+
 
 Returns:
     rectCenter - world coordinates of center of rectangle
     world_angle - true pose of rectangle
+    frame       - openCV image
 '''
-def get_track(rectangle):
-    pass
-    # rotatedrectangle = cv2.minAreaRect(rectangle)
-    # max_rect_area = rotatedrectangle[1][0] * rotatedrectangle[1][1]
-            
-    # ((um, vm), (wm, hm), angle) = cv2.minAreaRect(largest_rotated_rectangle)
-    
-    # # Draw the largest rotated rectangle on the original image
-    # box = np.int0(cv2.boxPoints(rotatedrectangle))
-    # #self.get_logger().info(str(box))
-    # cv2.circle(frame, (int(um), int(vm)), 1, self.blue, 2)
-    # cv2.drawContours(frame, [box], 0, self.red, 2)
-    # if wm < hm:
-    #     angle += 90
-    # orange_rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, self.ceil_camK, self.ceil_camD, angle = angle)
-    # world_coords = []
-    # for coord in box:
-    #     transformed_pt = self.pixelToWorld(frame, coord[0], coord[1], x0, y0, markerCorners,
-    #                                     markerIds, self.ceil_camK, self.ceil_camD, angle = angle, annotateImage=False)
-    #     world_coords.append(transformed_pt)
+def get_track(rectangle, frame, color1, color2, pixelToWorld, center, camK, camD, min_rect_area, markerCorners, markerIds):   
+    (x0, y0) = center
 
-    # norm1 = 0
-    # norm2 = 0
-    # if world_coords[0] is not None:
-    #     norm1 = np.linalg.norm(world_coords[0] - world_coords[1])
-    #     norm2 = np.linalg.norm(world_coords[1] - world_coords[2])
+    ((um, vm), (wm, hm), angle) = cv2.minAreaRect(rectangle)
+    rect_area = wm * hm
+
+    if rect_area < min_rect_area:
+       return (None, None, frame) # don't want this rectangle
+
+    # Draw the rotated rectangle on the original image
+    box = np.int0(cv2.boxPoints(((um, vm), (wm, hm), angle)))
+    cv2.circle(frame, (int(um), int(vm)), 1, color1, 2)
+    cv2.drawContours(frame, [box], 0, color2, 2)
+    if wm < hm:
+        angle += 90
+    rectCenter = pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, camK, camD, angle = angle)
+    world_coords = []
+    for coord in box:
+        transformed_pt = pixelToWorld(frame, coord[0], coord[1], x0, y0, markerCorners,
+                                        markerIds, camK, camD, angle = angle, annotateImage=False)
+        world_coords.append(transformed_pt)
+
+    norm1 = 0
+    norm2 = 0
+    if world_coords[0] is not None:
+        norm1 = np.linalg.norm(world_coords[0] - world_coords[1])
+        norm2 = np.linalg.norm(world_coords[1] - world_coords[2])
+
+        if norm1 <= norm2:
+            delta_y = world_coords[1][1] - world_coords[2][1]
+            delta_x = world_coords[1][0] - world_coords[2][0]
+            world_angle = np.pi - np.arctan(delta_y / delta_x)
+        else:
+            delta_y = world_coords[0][1] - world_coords[1][1]
+            delta_x = world_coords[0][0] - world_coords[1][0]
+            world_angle = np.arctan(delta_y / delta_x)
+    else:
+        world_angle = None
+        rectCenter = None # error in detection
+
+    return (rectCenter, world_angle, frame)
+
+
+'''
+Prepare a pose message to publish a rectangle.
+Arguments:
+    rectCenter (the center of the rectangle in world space)
+    world_angle (the world angle of the rectangle)
+
+Returns:
+    pose_msg (the pose message to publish)
+'''
+def get_rect_pose_msg(rectCenter, world_angle):
+    (xc, yc) = rectCenter
+
+    pose_msg = Pose()
+    rect_pt = Point()
+    rect_angle = Quaternion()
+    rect_pt.x = float(xc)
+    rect_pt.y = float(yc)
+    rect_pt.z = 0.0
+    rect_angle.x = 0.0
+    rect_angle.y = 0.0
+    rect_angle.z = float(np.sin(world_angle / 2))
+    rect_angle.w = float(np.cos(world_angle / 2))
+    pose_msg.position = rect_pt
+    pose_msg.orientation = rect_angle
+
+    return pose_msg
