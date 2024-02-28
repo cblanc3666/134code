@@ -24,7 +24,7 @@ from rclpy.node         import Node
 from sensor_msgs.msg    import Image
 from geometry_msgs.msg  import Point, Pose2D, Pose, Quaternion, Polygon, Point32
 from sensor_msgs.msg import CameraInfo # get rectification calibration (from checkerboard)
-from vanderbot.DetectHelpers  import *
+import vanderbot.DetectHelpers as dh
 #
 #  Detector Node Class
 #
@@ -58,8 +58,8 @@ class DetectorNode(Node):
         self.get_camera_info()    
 
         # # Report the ceiling camera calibration parameters.
-        self.report_cal_params("CEILING CAMERA", self.ceil_camD, self.ceil_camK, self.ceil_camw, self.ceil_camh)
-        self.report_cal_params("ARM CAMERA", self.arm_camD, self.arm_camK, self.arm_camw, self.arm_camh)
+        # self.report_cal_params("CEILING CAMERA", self.ceil_camD, self.ceil_camK, self.ceil_camw, self.ceil_camh)
+        # self.report_cal_params("ARM CAMERA", self.arm_camD, self.arm_camK, self.arm_camw, self.arm_camh)
 
         # Finally, subscribe to the incoming image topic.  Using a
         # queue size of one means only the most recent message is
@@ -211,14 +211,21 @@ class DetectorNode(Node):
 
             return xyObj
 
-    # Process the ceiling camera image (detect the track).
-    def ceil_process(self, msg):
+    '''
+    Helper function to handle first part of image processing
+    Arguments:
+        msg  - message that triggered the processing step in the first place
+    Returns: 
+        frame   - the OpenCV image, 
+        hsv     - HSV version of the image,
+    '''
+    def start_process(self, msg):
         # Confirm the encoding and report.
         assert(msg.encoding == "rgb8")
         # self.get_logger().info(
         #     "Image %dx%d, bytes/pixel %d, encoding %s" %
         #     (msg.width, msg.height, msg.step/msg.width, msg.encoding))
-
+        
         # Convert into OpenCV image, using RGB 8-bit (pass-through).
         frame = self.bridge.imgmsg_to_cv2(msg, "passthrough")
 
@@ -231,16 +238,8 @@ class DetectorNode(Node):
         uc = W//2
         vc = H//2
 
-        # Assume the center of marker sheet is at the world origin.
-        x0 = 0.0
-        y0 = 0.382
-
-        orange_rectCenter = None
-        pink_rectCenter = None
-
         # Mark the center of the image.
         cv2.circle(frame, (uc, vc), 5, self.red, -1)
-
 
         # Help to determine the HSV range...
         frame = cv2.line(frame, (uc,0), (uc,H-1), self.white, 1)
@@ -250,88 +249,27 @@ class DetectorNode(Node):
         # self.get_logger().info(
         #     "HSV = (%3d, %3d, %3d)" % tuple(hsv[vc, uc]))
 
-        # Threshold in Hmin/max, Smin/max, Vmin/max
-        binary_orange = cv2.inRange(hsv, self.HSV_ORANGE[:,0], self.HSV_ORANGE[:,1])
+        return (frame, hsv)
 
-        # Erode and Dilate. Definitely adjust the iterations!
-        iter = 1
-        binary_orange = cv2.erode( binary_orange, None, iterations=iter)
-        binary_orange = cv2.dilate(binary_orange, None, iterations=3*iter)
-        binary_orange = cv2.erode( binary_orange, None, iterations=iter)
+    # Process the ceiling camera image (detect the track).
+    def ceil_process(self, msg):
+        # Capture, convert image, and mark its center
+        (frame, hsv) = self.start_process(msg)
         
-        binary_pink = cv2.inRange(hsv, self.HSV_PINK[:,0], self.HSV_PINK[:,1])
+        (orange_rectCenter, pink_rectCenter) = (None, None)
 
-        # Erode and Dilate. Definitely adjust the iterations!
-        iter = 1
-        binary_pink = cv2.erode( binary_pink, None, iterations=iter)
-        binary_pink = cv2.dilate(binary_pink, None, iterations=3*iter)
-        binary_pink = cv2.erode( binary_pink, None, iterations=iter)
+        # Assume the center of marker sheet is at the world origin.
+        x0 = 0.0
+        y0 = 0.382
 
-        # Find contours in the mask and initialize the current
-        # (x, y) center of the ball
-        (contours_orange, _) = cv2.findContours(
-            binary_orange, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        (contours_pink, _) = cv2.findContours(
-            binary_pink, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-        # Draw all contours on the original image for debugging.
-        #cv2.drawContours(frame, contours, -1, self.blue, 2)
+        (contours_orange, binary_orange) = dh.init_processing(hsv, self.HSV_ORANGE, iter=1)
+        (contours_pink,   binary_pink)   = dh.init_processing(hsv, self.HSV_PINK,   iter=1)
         
         # Only proceed if at least one contour was found.  You may
         # also want to loop over the contours...
-        orange_rectangles = []
-        pink_rectangles = []
-        if len(contours_orange) > 0:
-            for cnt in contours_orange:
-                cnt_area = cv2.contourArea(cnt)
 
-                # comparing min rectangle and contour areas
-                # not used rn
-                rotated_rect = cv2.minAreaRect(cnt)
-                #rotated_rect = cv2.boxPoints(cnt)
-                rect_area = rotated_rect[1][0] * rotated_rect[1][1]
-                #self.get_logger().info(str(rect_area))
-                #cv2.drawContours(frame, [np.int0(cv2.boxPoints(rotated_rect))], 0, self.yellow, 2)
-                #self.get_logger().info(str(rect_area))
-                rect_ratio = cnt_area /rect_area
-
-                # aspect ratio of contour, if large then its a rectangle
-                # works better than area comparison for rects
-                ((cx, cy), (width, height), angle) = rotated_rect
-
-                if width > height:
-                    aspect_ratio = width / height
-                else:
-                    aspect_ratio = height / width
-
-                if aspect_ratio > 1.1:
-                    orange_rectangles.append(cnt)
-
-        if len(contours_pink) > 0:
-            for cnt in contours_pink:
-                cnt_area = cv2.contourArea(cnt)
-
-                # comparing min rectangle and contour areas
-                # not used rn
-                rotated_rect = cv2.minAreaRect(cnt)
-                #rotated_rect = cv2.boxPoints(cnt)
-                rect_area = rotated_rect[1][0] * rotated_rect[1][1]
-                #self.get_logger().info(str(rect_area))
-                #cv2.drawContours(frame, [np.int0(cv2.boxPoints(rotated_rect))], 0, self.yellow, 2)
-                #self.get_logger().info(str(rect_area))
-                rect_ratio = cnt_area /rect_area
-
-                # aspect ratio of contour, if large then its a rectangle
-                # works better than area comparison for rects
-                ((cx, cy), (width, height), angle) = rotated_rect
-
-                if width > height:
-                    aspect_ratio = width / height
-                else:
-                    aspect_ratio = height / width
-
-                if aspect_ratio > 1.1:
-                    pink_rectangles.append(cnt)
+        orange_rectangles = dh.get_rects(contours_orange)
+        pink_rectangles = dh.get_rects(contours_pink)
                     
         markerCorners, markerIds, _ = cv2.aruco.detectMarkers(
                 frame, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50))
@@ -340,8 +278,7 @@ class DetectorNode(Node):
             largest_rotated_rectangle = max(orange_rectangles, key=cv2.contourArea)
             rotatedrectangle = cv2.minAreaRect(largest_rotated_rectangle)
             max_rect_area = rotatedrectangle[1][0] * rotatedrectangle[1][1]
-                
-            #self.get_logger().info(str(max_rect_area))
+                    
             ((um, vm), (wm, hm), angle) = cv2.minAreaRect(largest_rotated_rectangle)
             
             # Draw the largest rotated rectangle on the original image
@@ -363,19 +300,8 @@ class DetectorNode(Node):
             if world_coords[0] is not None:
                 norm1 = np.linalg.norm(world_coords[0] - world_coords[1])
                 norm2 = np.linalg.norm(world_coords[1] - world_coords[2])
-            #self.get_logger().info(f"{norm1}, {norm2}")
-            # self.get_logger().info(str(um))
-            # self.get_logger().info(str(vm))
-            # if len(markerIds) == 4:
-            #     rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds)
-            #     s = "(%7.4f, %7.4f, %7.4f)" % (rectCenter[0], rectCenter[1], angle)
-            #     cv2.putText(frame, s, (int(rectCenter[0] - 80), int(rectCenter[1] - 8)), cv2.FONT_HERSHEY_SIMPLEX,
-            #                         0.5, (255, 0, 0), 2, cv2.LINE_AA)
-            # if rectCenter is not None:
-            #     self.get_logger().info(
-            #                 "Found Rectangle enclosed by width %d and height %d about (%d,%d)" %
-            #                 (wm, hm, rectCenter[0], rectCenter[1]))
-    
+
+
         # Report the mapping.
         if orange_rectCenter is None or max_rect_area < self.MIN_RECT_AREA:
             #self.get_logger().info("Unable to execute rectangle mapping-Orange")
@@ -507,174 +433,25 @@ class DetectorNode(Node):
         self.ceil_pubbin_pink.publish(self.bridge.cv2_to_imgmsg(binary_pink))
 
     def arm_process(self, msg):
-        # Confirm the encoding and report.
-        assert(msg.encoding == "rgb8")
-
-        # Convert into OpenCV image, using RGB 8-bit (pass-through).
-        frame = self.bridge.imgmsg_to_cv2(msg, "passthrough")
-
-        # Convert to HSV
-        hsv = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
-        # hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)  # Cheat: swap red/blue
-
-        # Grab the image shape, determine the center pixel.
-        (H, W, D) = frame.shape
-        uc = W//2
-        vc = H//2
-
-        green_rectCenter = None
-        purple_circCenter = None
-
-        # Mark the center of the image.
-        cv2.circle(frame, (uc, vc), 5, self.red, -1)
-
-
-        # Help to determine the HSV range...
-        frame = cv2.line(frame, (uc,0), (uc,H-1), self.white, 1)
-        frame = cv2.line(frame, (0,vc), (W-1,vc), self.white, 1)
-
-        # Threshold in Hmin/max, Smin/max, Vmin/max
-        binary_purple = cv2.inRange(hsv, self.HSV_PURPLE[:,0], self.HSV_PURPLE[:,1])
-        binary_green = cv2.inRange(hsv, self.HSV_GREEN[:,0], self.HSV_GREEN[:,1])
-
-        # Erode and Dilate. Definitely adjust the iterations!
-        iter = 1
-        binary_purple = cv2.erode( binary_purple, None, iterations=iter)
-        binary_purple = cv2.dilate(binary_purple, None, iterations=3*iter)
-        binary_purple = cv2.erode( binary_purple, None, iterations=iter)
-
-        binary_green = cv2.erode( binary_green, None, iterations=iter)
-        binary_green = cv2.dilate(binary_green, None, iterations=3*iter)
-        binary_green = cv2.erode( binary_green, None, iterations=iter)
-
-        # Find contours in the mask and initialize the current
-        # (x, y) center of the ball
-        (contours_purple, _) = cv2.findContours(
-            binary_purple, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        (frame, hsv) = self.start_process(msg)
         
-        (contours_green, _) = cv2.findContours(
-            binary_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        # Draw all contours on the original image for debugging.
-        # cv2.drawContours(frame, contours_green, -1, self.blue, 2)
+        (contours_purple, binary_purple) = dh.init_processing(hsv, self.HSV_PURPLE, iter=1)
+        (contours_green,  binary_green)  = dh.init_processing(hsv, self.HSV_GREEN,  iter=1)
         
         # Only proceed if at least one contour was found.  You may
         # also want to loop over the contours...
-        green_rectangles =[]
-        purple_circles = []
-        if len(contours_purple) > 0:
-            for cnt in contours_purple:
-                #cnt_area = cv2.contourArea(cnt)
-                # Find the enclosing circle (convert to pixel values)
-                ((ur, vr), radius) = cv2.minEnclosingCircle(cnt)
-                ur     = int(ur)
-                vr     = int(vr)
-                radius = int(radius)
+        purple_circles = dh.get_circs(contours_purple)
+        green_rectangles = dh.get_rects(contours_green)
 
-                # Draw the circle (yellow) and centroid (red) on the
-                # original image.
-                cv2.circle(frame, (ur, vr), int(radius), self.yellow,  1)
-                cv2.circle(frame, (ur, vr), 5,           self.red,    -1)
-                # comparing min rectangle and contour areas
-                # not used rn
-                #rotated_rect = cv2.minAreaRect(cnt)
-                #rotated_rect = cv2.boxPoints(cnt)
-                #rect_area = rotated_rect[1][0] * rotated_rect[1][1]
-                #self.get_logger().info(str(rect_area))
-                #cv2.drawContours(frame, [np.int0(cv2.boxPoints(rotated_rect))], 0, self.yellow, 2)
-                #self.get_logger().info(str(rect_area))
-                #rect_ratio = cnt_area /rect_area
+        green_rectCorners = dh.get_largest_green_rect(green_rectangles, frame, self.red)
+        purple_circCenter = dh.get_largest_purple_circ(purple_circles, frame, self.yellow)
 
-                # aspect ratio of contour, if large then its a rectangle
-                # works better than area comparison for rects
-                #((cx, cy), (width, height), angle) = rotated_rect
-
-                # if width > height:
-                #     aspect_ratio = width / height
-                # else:
-                #     aspect_ratio = height / width
-
-                # if aspect_ratio > 1.1:
-                #     rectangles.append(cnt)
-                purple_circles.append(cnt)
-
-        if len(contours_green) > 0:
-            for cnt in contours_green:
-                rotated_rect = cv2.minAreaRect(cnt)
-                rect_area = rotated_rect[1][0] * rotated_rect[1][1]
-                cv2.drawContours(frame, [np.int0(cv2.boxPoints(rotated_rect))], 0, self.yellow, 2)
-
-                # aspect ratio of contour, if large then its a rectangle
-                # works better than area comparison for rects
-                ((cx, cy), (width, height), angle) = rotated_rect
-
-                # if aspect_ratio > 1.1:
-                green_rectangles.append(cnt)       
-
-        if len(green_rectangles) > 0:
-            largest_rect = max(green_rectangles, key = cv2.contourArea)
-            rotatedrectangle = cv2.minAreaRect(largest_rect)
-            ((u_green, v_green), (wm, hm), angle_green) = cv2.minAreaRect(largest_rect)
-            box = np.int0(cv2.boxPoints(rotatedrectangle))
-            cv2.drawContours(frame, [box], 0, self.red, 2)
-            green_rectCenter = (u_green, v_green)
-            green_corners = box.tolist()
-            
-
-        if len(purple_circles) > 0:
-            largest_circle = max(purple_circles, key = cv2.contourArea)
-            ((u_purple, v_purple), _) = cv2.minEnclosingCircle(largest_circle)
-            purple_circCenter = (u_purple, v_purple)
-       
-        
-        #     #TODO will need to change pixeltoworld or write another function because the arm camera doesn't need arucos
-        #     rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, self.ceil_camK, self.ceil_camD, angle = angle)
-        #     world_coords = []
-        #     for coord in box:
-        #         transformed_pt = self.pixelToWorld(frame, coord[0], coord[1], x0, y0, markerCorners,
-        #                                         markerIds, self.ceil_camK, self.ceil_camD, angle = angle, annotateImage=False)
-        #         world_coords.append(transformed_pt)
-
-        #     norm1 = 0
-        #     norm2 = 0
-        #     if world_coords[0] is not None:
-        #         norm1 = np.linalg.norm(world_coords[0] - world_coords[1])
-        #         norm2 = np.linalg.norm(world_coords[1] - world_coords[2])
-            #self.get_logger().info(f"{norm1}, {norm2}")
-            # self.get_logger().info(str(um))
-            # self.get_logger().info(str(vm))
-            # if len(markerIds) == 4:
-            #     rectCenter = self.pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds)
-            #     s = "(%7.4f, %7.4f, %7.4f)" % (rectCenter[0], rectCenter[1], angle)
-            #     cv2.putText(frame, s, (int(rectCenter[0] - 80), int(rectCenter[1] - 8)), cv2.FONT_HERSHEY_SIMPLEX,
-            #                         0.5, (255, 0, 0), 2, cv2.LINE_AA)
-            # if rectCenter is not None:
-            #     self.get_logger().info(
-            #                 "Found Rectangle enclosed by width %d and height %d about (%d,%d)" %
-            #                 (wm, hm, rectCenter[0], rectCenter[1]))
-    
         # Report the mapping.
-        if green_rectCenter is None:
+        if green_rectCorners is None:
             pass
         else:
-            # TODO POLYGON
-            # green_pose_msg = Pose() # TODO randy
-            # green_rect_pt = Point()
-            # green_rect_angle = Quaternion()
-            # green_rect_pt.x = float(u_green)
-            # green_rect_pt.y = float(v_green)
-            # green_rect_pt.z = 0.0
-            # green_rect_angle.x = 0.0
-            # green_rect_angle.y = 0.0
-            # green_rect_angle.z = float(np.sin(angle_green / 2))
-            # green_rect_angle.w = float(np.cos(angle_green / 2))
-            # green_pose_msg.position = green_rect_pt
-            # green_pose_msg.orientation = green_rect_angle
-            # self.green_rect.publish(green_pose_msg)
-
-
             green_polygon_msg = Polygon()
-
-            for point in green_corners:
+            for point in green_rectCorners:
                 p = Point32()
                 point = np.float32(point)
                 point = cv2.undistortPoints(point, self.arm_camK, self.arm_camD)
@@ -689,7 +466,7 @@ class DetectorNode(Node):
         else:
             point_msg = Point()
             # Map the object in question.
-            uv_purple = np.float32([u_purple, v_purple])
+            uv_purple = np.float32(purple_circCenter)
             # self.get_logger().info(f"PURPLE UV 1{uv_purple}")
 
             # Undistort coords and report xbar, ybar, 1
@@ -701,41 +478,6 @@ class DetectorNode(Node):
             point_msg.z = 1.0
             # self.get_logger().info(f"PurpleCenter {u_purple}, {v_purple}")
             self.purple_circ.publish(point_msg)
-
-        # if rectCenter is None or max_rect_area < self.MIN_RECT_AREA:
-        #     # self.get_logger().info("Unable to execute rectangle mapping")
-        #     pass
-        # else:
-        #     (xc, yc) = rectCenter
-        #     world_angle = 0
-        #     if norm1 <= norm2:
-        #         delta_y = world_coords[1][1] - world_coords[2][1]
-        #         delta_x = world_coords[1][0] - world_coords[2][0]
-        #         world_angle = np.pi - np.arctan(delta_y / delta_x)
-        #     else:
-        #         delta_y = world_coords[0][1] - world_coords[1][1]
-        #         delta_x = world_coords[0][0] - world_coords[1][0]
-        #         world_angle = np.arctan(delta_y / delta_x)
-        #     #self.get_logger().info(str(world_angle * 180 / np.pi))
-        #     # pt1 = rectCenter[1]
-        #     # delta_y = pt1[1] - yc
-        #     # delta_x = pt1[0] - xc
-        #     #world_angle = np.arctan2(delta_y, delta_x)
-        #     self.get_logger().info("Camera pointed at rectangle of (%f,%f)" % (xc, yc))
-        #     #self.get_logger().info(f"{world_angle * 180 / np.pi}")
-        #     pose_msg = Pose()
-        #     rect_pt = Point()
-        #     rect_angle = Quaternion()
-        #     rect_pt.x = float(xc)
-        #     rect_pt.y = float(yc)
-        #     rect_pt.z = 0.0
-        #     rect_angle.x = 0.0
-        #     rect_angle.y = 0.0
-        #     rect_angle.z = float(np.sin(world_angle / 2))
-        #     rect_angle.w = float(np.cos(world_angle / 2))
-        #     pose_msg.position = rect_pt
-        #     pose_msg.orientation = rect_angle
-        #     self.rect_pose.publish(pose_msg)
 
         # Convert the frame back into a ROS image and republish.
         self.arm_pubrgb.publish(self.bridge.cv2_to_imgmsg(frame, "rgb8"))
