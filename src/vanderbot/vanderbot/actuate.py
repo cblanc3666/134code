@@ -9,6 +9,7 @@ import numpy as np
 import rclpy
 
 from enum import Enum
+from SegmentQueueDelayed import SegmentQueue, JointSpline, star
 
 from rclpy.node                 import Node
 from sensor_msgs.msg            import JointState
@@ -26,6 +27,7 @@ from std_msgs.msg               import Float32
 #
 RATE = 100.0            # transmit rate, in Hertz
 gamma = 0.1
+
 
 def wrap(angle, fullrange):
     return angle - fullrange * round(angle/fullrange)
@@ -140,7 +142,7 @@ class VanderNode(Node):
         self.position0 = fbk[:5] # trim off gripper position to save separately
         self.grip_position0 = fbk[5]
 
-        # Set the initial desired position to initial position so robot stay put
+        # Set the initial desired position to initial position so robot stays put
         self.q_des = self.position0
         self.qdot_des = QDOT_INIT
         self.grip_q_des = self.grip_position0
@@ -148,10 +150,19 @@ class VanderNode(Node):
         
         self.get_logger().info("Initial positions: %r" % self.position0)
 
+        # create kinematic chains
+        self.chain = KinematicChain('world', 'tip', self.jointnames())
+        self.cam_chain = KinematicChain('world', 'cam', self.jointnames())
+
         # Start the clock
         self.start_time = self.get_clock().now().nanoseconds * 1e-9
 
+        # initialize segment queue with the desired fkin function
+        self.SQ = SegmentQueue(self.chain.fkin)
+        self.SQ.update(self.start_time, self.q_des, self.qdot_des)
+        
         # Set up first spline (only shoulder is moving)
+        self.SQ.enqueue(JointSpline())
         ArmState.START.segments.append(Goto5(np.array(self.position0), 
                                      np.array([self.position0[0], IDLE_POS[1], self.position0[2], self.position0[3], self.position0[4]]),
                                      ArmState.START.duration,
@@ -187,8 +198,6 @@ class VanderNode(Node):
         self.timer = self.create_timer(1/rate, self.sendcmd)
         self.get_logger().info("Sending commands with dt of %f seconds (%fHz)" %
                                (self.timer.timer_period_ns * 1e-9, rate))
-
-        # TODO subscribe to track messages
         
         self.fbksub = self.create_subscription(
             Point, '/point', self.recvpoint, 10)
@@ -202,21 +211,8 @@ class VanderNode(Node):
         self.green_rect = self.create_subscription(
             Polygon, '/GreenRect', self.recvgreenrect, 10)
         
-        
-        # #Create subscriber to circle message
-        # self.circle_pos = None
-        # self.fbkcirc = self.create_subscription(Point, '/Circle', self.recvCircle, 10)
-
-        # #Create subscriber to rectangle message
-        # self.rect_pos = None
-        # self.fbkrect = self.create_subscription(Pose, '/Rectangle', self.recvRect, 10)
-
-
         # Report.
         self.get_logger().info("Running %s" % name)
-        self.chain = KinematicChain('world', 'tip', self.jointnames())
-        self.cam_chain = KinematicChain('world', 'cam', self.jointnames())
-
         
         # Pick the convergence bandwidth.
         self.lam = 20.0
@@ -674,9 +670,6 @@ class VanderNode(Node):
             Jinv = Jv_mod.T @ np.linalg.pinv(Jv_mod @ Jv_mod.T + gamma**2 * np.eye(5))
             qdot = Jinv @ vr # ikin result
 
-            # old version that mixed ikin feedback loop with motor fdbk loop
-            # q = np.reshape(self.position, (-1, 1)) + qdot / RATE 
-            
             # new version that makes q depend solely on qdot instead of 
             # current position as well
             q = np.reshape(self.q_des, (-1, 1)) + qdot / RATE
