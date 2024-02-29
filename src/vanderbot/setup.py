@@ -30,7 +30,8 @@ setup(
             'hsvtune       = vanderbot.hsvtune:main',
             'trackdetector = vanderbot.trackdetector:main',
             'actuate = vanderbot.actuate:main',
-            'detectaruco = vanderbot.detectaruco:main'
+            'detectaruco = vanderbot.detectaruco:main',
+            'gamestate = vanderbot.gamestate:main',
         ],
     },
 )

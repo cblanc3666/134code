@@ -88,7 +88,7 @@ def generate_launch_description():
 
     # Runs code to move actuators and receive feedback from them
     node_actuate = Node(
-        name       = 'actuate', 
+        name       = 'actuadef generate_launch_description():te', 
         package    = 'vanderbot',
         executable = 'actuate',
         output     = 'screen')

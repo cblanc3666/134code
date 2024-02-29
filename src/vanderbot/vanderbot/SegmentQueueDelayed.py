@@ -1,5 +1,8 @@
 import copy 
 import numpy as np 
+from vanderbot.TransformHelpers  import *
+
+# ALL INPUTS AND OUTPUTS ARE FLAT
 
 def crossmat(e):
     e = e.flatten()
@@ -29,11 +32,15 @@ class JointSpline():
     Takes q, qdot from last known q, qdot before the spline runs
     '''
 
-    def __init__(self, qf, qdotf, T) -> None:
+    def __init__(self, qf, qdotf, qgripf, T) -> None:
         self.q0 = None 
         self.qf = qf 
         self.qdot0 = None 
         self.qdotf = qdotf 
+        self.qgrip0 = None
+        self.qgripf = qgripf
+        self.qdotgrip0 = None
+        self.qdotgripf = 0.0 # gripper always still at end of spline
         self.T = T 
 
         self.space = 'Joint' 
@@ -44,18 +51,25 @@ class JointSpline():
         '''
         return self.space 
     
-    def evaluate(self, fkin, t):
+    def evaluate(self, fkin, q_prev, t):
         '''
         Compute the q, qdot of the given spline at time t.
         
         Inputs:
+        fkin - not used.
+        q_prev - Last commanded position. Not used.
         t - time in seconds since the start of the current spline 
 
         Outputs:
-        q, qdot - the position and the velocity 
+        q, qdot - the position and the velocity INCLUDING the gripper 
         '''
         q, qdot = spline(t, self.T, self.q0, self.qf, self.qdot0, self.qdotf)          
-        return q, qdot   
+        qgrip, qdotgrip = spline(t, self.T, self.qgrip0, self.qgripf, self.qdotgrip0, self.qdotgripf)
+        qg = np.append(q, qgrip)
+        qgdot = np.append(qdot, qdotgrip)
+
+        return qg, qgdot   
+        
     
     def completed(self, t):
         '''
@@ -63,11 +77,15 @@ class JointSpline():
         '''
         return t > self.T
 
-    def calculateParameters(self, q, qdot, fkin): 
+    def calculateParameters(self, q, qdot, qgrip, fkin): 
         '''
         Fills up the q0 & qdot0 parameters. fkin is useless, but is passed in 
         since the tip spline needs it. 
         '''
+
+        self.qgrip0 = qgrip
+        self.qdotgrip0 = 0.0 # gripper always still at end of spline
+
         self.q0 = q.copy() 
         self.qdot0 = qdot.copy()
 
@@ -75,14 +93,23 @@ class TaskSpline():
     '''
     A task space spline. The inputs are pf, vf, Rf and T.
     '''
-    def __init__(self, pf, vf, Rf, T) -> None:
+    def __init__(self, pf, vf, qgripf, T, lam, gamma, rate) -> None:
         self.p0 = None 
         self.pf = pf 
         self.v0 = None 
         self.vf = vf 
+        self.qgrip0 = None
+        self.qgripf = qgripf
+        self.qdotgrip0 = None
+        self.qdotgripf = 0.0 # gripper always still at end of spline
         self.T = T 
 
         self.space = 'Tip' 
+
+        # convergence bandwidth for ikin
+        self.lam = lam
+        self.gamma = gamma
+        self.rate = rate
 
     def getSpace(self):
         '''
@@ -90,22 +117,47 @@ class TaskSpline():
         '''
         return self.space 
     
-    def evaluate(self, fkin, t): # TODO fix this
+    def evaluate(self, fkin, q_prev, t):
         '''
-        Compute the p, v of the given spline.
+        Compute the q, qdot of the given task spline using ikin.
         
         Inputs:
+        fkin - allows us to transform q_prev to task space
+        q_prev - Last commanded position. Not used.
         t - time in seconds since the start of the current spline 
 
         Outputs:
         q, qdot - the position and velocity
         '''
+        pd, vd = spline(t, self.T, self.p0, self.pf, self.v0, self.vf)
 
-        p, v = spline(t, self.T, self.p0, self.pf, self.v0, self.vf)
+        qgrip, qdotgrip = spline(t, self.T, self.qgrip0, self.qgripf, self.qdotgrip0, self.qdotgripf)
 
-        (ptip_des, _, Jv, _) = fkin(np.reshape(self.q_des, (-1, 1)))
+        (p_prev, _, Jv, _) = fkin(np.reshape(q_prev, (-1, 1)))
 
-        return (p, v)
+        # extract alpha and beta directly from joint space
+        alpha = q_prev[1]-q_prev[2]+q_prev[3] 
+        beta = q_prev[0]-q_prev[4] # base minus twist
+
+        p_prev = np.vstack((p_prev, alpha, beta))
+
+        vr   = vd + self.lam * ep(pd, p_prev)
+
+        # TODO hard-code these arrays in as constants somewhere since we use them to calculate alpha and beta in fkin
+        Jv_mod = np.vstack((Jv, [0, 1, -1, 1, 0], [1, 0, 0, 0, -1]))
+
+        Jinv = Jv_mod.T @ np.linalg.pinv(Jv_mod @ Jv_mod.T + self.gamma**2 * np.eye(5))
+        qdot = Jinv @ vr # ikin result
+
+        q = np.reshape(q_prev, (-1, 1)) + qdot / self.rate
+
+        q = q.flatten()
+        qdot = qdot.flatten()
+
+        qg = np.append(q, qgrip)
+        qgdot = np.append(qdot, qdotgrip)
+
+        return qg, qgdot
 
     
     def completed(self, t):
@@ -114,24 +166,27 @@ class TaskSpline():
         '''
         return t > self.T
 
-    def calculateParameters(self, q, qdot, fkin): # TODO fix this
+    def calculateParameters(self, q, qdot, qgrip, fkin):
         '''
-        Fills in all the parameters - R0, p0, v0, R, theta, e.
+        Fills in all the parameters - p0 and v0.
         '''
-        p0, R0, Jv, _ = fkin(q)
+        p0, _, Jv, _ = fkin(np.reshape(q, (-1, 1)))
+ 
+        v0 = Jv @ np.reshape(qdot, (-1, 1)) 
 
-        self.R0 = R0
-        self.p0 = p0 
-        self.v0 = Jv @ qdot 
+        # extract alpha and beta directly from joint space
+        alpha = q[1]-q[2]+q[3] 
+        beta = q[0]-q[4] # base minus twist
 
-        self.R = self.R0.T @ self.Rf
-        self.theta = np.arccos((np.trace(self.R) - 1)/2)
+        alphadot = qdot[1]-qdot[2]+qdot[3]
+        betadot = qdot[0]-qdot[4]
 
-        if self.theta == 0:
-            self.noR = True
-        
-        else:
-            self.e = np.array([self.R[2,1] - self.R[1,2], self.R[0,2] - self.R[2,0], self.R[1,0] - self.R[0,1]]).T / (2 * np.sin(self.theta))
+        self.p0 = np.vstack((p0, alpha, beta))
+        self.v0 = np.vstack((v0, alphadot, betadot))
+
+        self.qgrip0 = qgrip
+        self.qdotgrip0 = 0.0 # gripper always still at end of spline
+
 
 class SegmentQueue():
     '''
@@ -144,7 +199,7 @@ class SegmentQueue():
     is no current spline 
 
     '''
-    def __init__(self, fkin, rate, lam=20.0) -> None:
+    def __init__(self, fkin, rate=100.0, lam=20.0, gamma=0.1) -> None:
         '''
         q: The initial joint space configuration of the robot.     
         qdot: The initial joint space velocity of the robot.     
@@ -157,9 +212,19 @@ class SegmentQueue():
         self.t = 0 
         self.q = None 
         self.qdot = None
+        self.qgrip = None
         self.fkin = fkin
-        self.rate = rate # TODO
+        self.rate = rate
+        self.lam = lam
+        self.gamma = gamma
 
+    def enqueue_task(self, pf, vf, qgrip_f, T):
+        segment = TaskSpline(np.reshape(pf, (-1, 1)), np.reshape(vf, (-1, 1)), qgrip_f, T, self.lam, self.gamma, self.rate)
+        self.enqueue(segment)
+
+    def enqueue_joint(self, qf, qdotf, qgrip_f, T):
+        segment = JointSpline(qf, qdotf, qgrip_f, T)
+        self.enqueue(segment)
 
     def enqueue(self, segment):
         '''
@@ -186,7 +251,7 @@ class SegmentQueue():
         '''
         self.queue = []
 
-    def update(self, t, q, qdot):
+    def update(self, t, qg, qgdot):
         '''
         Update function. Every single tick, this function must be run, so that 
         the segment queue can keep track of the current time and q.
@@ -194,40 +259,45 @@ class SegmentQueue():
         t: The current time
         q: The current joint space configuration of the robot
         qdot: The current joint space velocity of the robot
-        
         '''
 
         self.t = t 
-        self.q = q
-        self.qdot = qdot
+        self.q = qg[0:5]
+        self.qdot = qgdot[0:5]
+        self.qgrip = qg[5]
 
         if len(self.queue) == 0:
             # If nothing in queue, just update the time
-            return 
+            return
         
         if self.queue[0].completed(self.t - self.t0):
             # If the current segment is completed, discard it
             self.queue.pop(0)
 
             if len(self.queue) == 0:
-                return 
+                return
             else:
                 # If there is a new segment, set the start time of that segment to the current time
                 self.t0 = t 
                 # Update that splines inputs
                 self.calculateParameters()
+                
+        return False
 
+    def isEmpty(self):
+        return len(self.queue) == 0
 
     def evaluate(self):
         '''
-        Evaluates the current object, and gives you either the q, qdot if it 
-        is a joint spline, or p, v, R, w if it is a task spline
+        Evaluates the current object, and gives you the q, qdot. Runs ikin if 
+        it is a task spline
         '''
         if len(self.queue) == 0: 
-            raise Exception("No Segment to Run")
+            raise Warning("No Segment to Run")
+            return self.qg
 
         else: 
-            return self.queue[0].evaluate(self.t - self.t0)
+            return self.queue[0].evaluate(self.fkin, self.q, self.t - self.t0)
 
 
     def getCurrentSpace(self):
@@ -247,7 +317,7 @@ class SegmentQueue():
         '''
 
         if len(self.queue) != 0:
-            self.queue[0].calculateParameters(self.q, self.qdot, self.fkin)
+            self.queue[0].calculateParameters(self.q, self.qdot, self.qgrip, self.fkin)
 
 
 def star(center, radius = 3):

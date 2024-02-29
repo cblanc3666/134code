@@ -22,7 +22,7 @@ import cv_bridge
 
 from rclpy.node         import Node
 from sensor_msgs.msg    import Image
-from geometry_msgs.msg  import Point, Pose2D, Pose, Quaternion, Polygon, Point32
+from geometry_msgs.msg  import Point, Pose2D, Pose, Quaternion, Polygon, Point32, PoseArray
 from sensor_msgs.msg import CameraInfo # get rectification calibration (from checkerboard)
 import vanderbot.DetectHelpers as dh
 #
@@ -42,6 +42,7 @@ class DetectorNode(Node):
     HSV_PINK = np.array([[150, 180], [80, 255], [120, 255]])
     HSV_PURPLE = np.array([[160, 180], [140, 255], [120, 255]])
     HSV_GREEN = np.array([[18, 150], [80, 255], [72, 255]])
+    HSV_BLUE = np.array([[87, 107], [170, 220], [175, 255]])
 
     # Take center of ArUco relative to world origin. X0, Y0
     CENTER = (0.0, 0.382)
@@ -82,14 +83,16 @@ class DetectorNode(Node):
         self.ceil_pubrgb = self.create_publisher(Image, name+'/ceil_image_raw', n_images)
         self.ceil_pubbin_orange = self.create_publisher(Image, name+'/ceil_binary_orange', n_images)
         self.ceil_pubbin_pink = self.create_publisher(Image, name+'/ceil_binary_pink', n_images)
+        self.ceil_pubbin_blue = self.create_publisher(Image, name+'/ceil_binary_blue', n_images)
 
         self.arm_pubrgb = self.create_publisher(Image, name+'/arm_image_raw', n_images)
         self.arm_pubbin_purple = self.create_publisher(Image, name+'/arm_binary_purple', n_images)
         self.arm_pubbin_green = self.create_publisher(Image, name+'/arm_binary_green', n_images)
 
         # Publish data on tracks detected
-        self.rect_pose_orange = self.create_publisher(Pose, "/StraightTrackOrange", n_images)
-        self.rect_pose_pink = self.create_publisher(Pose, "/StraightTrackPink", n_images)
+        self.rect_pose_orange = self.create_publisher(PoseArray, "/LeftTracksOrange", n_images)
+        self.rect_pose_pink = self.create_publisher(PoseArray, "/RightTracksPink", n_images)
+        self.rect_pose_blue = self.create_publisher(PoseArray, "/StraightTracksBlue", n_images)
         self.purple_circ = self.create_publisher(Point, "/PurpleCirc", n_images)
         self.green_rect = self.create_publisher(Polygon, "/GreenRect", n_images)
             # Difference in centers of purple and green rectangles in pixel space
@@ -261,53 +264,91 @@ class DetectorNode(Node):
 
         (contours_orange, binary_orange) = dh.init_processing(hsv, self.HSV_ORANGE, iter=1)
         (contours_pink,   binary_pink)   = dh.init_processing(hsv, self.HSV_PINK,   iter=1)
+        (contours_blue,   binary_blue)   = dh.init_processing(hsv, self.HSV_BLUE,   iter=1)
         
         # Only proceed if at least one contour was found.  You may
         # also want to loop over the contours...
 
         orange_rectangles = dh.get_rects(contours_orange)
         pink_rectangles = dh.get_rects(contours_pink)
+        blue_rectangles = dh.get_rects(contours_blue)
                     
         markerCorners, markerIds, _ = cv2.aruco.detectMarkers(
                 frame, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50))
 
         # TODO start looping through all rectangles instead of taking the largest
         # for orange_rec in orange_rectangles:
+
+        orange_poses = PoseArray()
         if len(orange_rectangles) is not 0:
-            orange_rec = max(orange_rectangles, key=cv2.contourArea)
-            (rectCenter, world_angle, frame) = dh.get_track(orange_rec, 
-                                                            frame, 
-                                                            self.red, 
-                                                            self.blue, 
-                                                            self.pixelToWorld, 
-                                                            self.CENTER, 
-                                                            self.ceil_camK, 
-                                                            self.ceil_camD,
-                                                            self.MIN_RECT_AREA,
-                                                            markerCorners,
-                                                            markerIds)
-            if rectCenter is not None:
-                pose_msg = dh.get_rect_pose_msg(rectCenter, world_angle)
-                self.rect_pose_orange.publish(pose_msg)
+            for orange_rec in orange_rectangles:
+                #orange_rec = max(orange_rectangles, key=cv2.contourArea)
+                (rectCenter, world_angle, frame) = dh.get_track(orange_rec, 
+                                                                frame, 
+                                                                self.red, 
+                                                                self.blue, 
+                                                                self.pixelToWorld, 
+                                                                self.CENTER, 
+                                                                self.ceil_camK, 
+                                                                self.ceil_camD,
+                                                                self.MIN_RECT_AREA,
+                                                                markerCorners,
+                                                                markerIds)
+                if rectCenter is not None:
+                    pose_msg = dh.get_rect_pose_msg(rectCenter, world_angle)
+                    orange_poses.poses.append(pose_msg)
+                    #self.rect_pose_orange.publish(pose_msg)
 
+        if len(orange_poses.poses) is not 0:
+            self.rect_pose_orange.publish(orange_poses)
         # for pink_rec in pink_rectangles:
-        if len(pink_rectangles) is not 0:
-            pink_rec = max(pink_rectangles, key=cv2.contourArea)
-            (rectCenter, world_angle, frame) = dh.get_track(pink_rec, 
-                                                            frame, 
-                                                            self.red, 
-                                                            self.blue, 
-                                                            self.pixelToWorld, 
-                                                            self.CENTER, 
-                                                            self.ceil_camK, 
-                                                            self.ceil_camD,
-                                                            self.MIN_RECT_AREA,
-                                                            markerCorners,
-                                                            markerIds)
 
-            if rectCenter is not None:
-                pose_msg = dh.get_rect_pose_msg(rectCenter, world_angle)
-                self.rect_pose_pink.publish(pose_msg)
+        pink_poses = PoseArray()
+        if len(pink_rectangles) is not 0:
+            for pink_rec in pink_rectangles:
+                #pink_rec = max(pink_rectangles, key=cv2.contourArea)
+                (rectCenter, world_angle, frame) = dh.get_track(pink_rec, 
+                                                                frame, 
+                                                                self.red, 
+                                                                self.blue, 
+                                                                self.pixelToWorld, 
+                                                                self.CENTER, 
+                                                                self.ceil_camK, 
+                                                                self.ceil_camD,
+                                                                self.MIN_RECT_AREA,
+                                                                markerCorners,
+                                                                markerIds)
+
+                if rectCenter is not None:
+                    pose_msg = dh.get_rect_pose_msg(rectCenter, world_angle)
+                    pink_poses.poses.append(pose_msg)
+                    #self.rect_pose_pink.publish(pose_msg)
+
+        if len(pink_poses.poses) is not 0:
+            self.rect_pose_pink.publish(pink_poses)
+
+        blue_poses = PoseArray()
+        if len(blue_rectangles) is not 0:
+            for blue_rec in blue_rectangles:
+                #blue_rec = max(blue_rectangles, key=cv2.contourArea)
+                (rectCenter, world_angle, frame) = dh.get_track(blue_rec, 
+                                                                frame, 
+                                                                self.red, 
+                                                                self.blue, 
+                                                                self.pixelToWorld, 
+                                                                self.CENTER, 
+                                                                self.ceil_camK, 
+                                                                self.ceil_camD,
+                                                                self.MIN_RECT_AREA,
+                                                                markerCorners,
+                                                                markerIds)
+
+                if rectCenter is not None:
+                    pose_msg = dh.get_rect_pose_msg(rectCenter, world_angle)
+                    blue_poses.poses.append(pose_msg)
+
+        if len(blue_poses.poses) is not 0:
+            self.rect_pose_blue.publish(blue_poses)
 
         # Convert the frame back into a ROS image and republish.
         self.ceil_pubrgb.publish(self.bridge.cv2_to_imgmsg(frame, "rgb8"))
@@ -315,6 +356,7 @@ class DetectorNode(Node):
         # Also publish the binary (black/white) image.
         self.ceil_pubbin_orange.publish(self.bridge.cv2_to_imgmsg(binary_orange))
         self.ceil_pubbin_pink.publish(self.bridge.cv2_to_imgmsg(binary_pink))
+        self.ceil_pubbin_blue.publish(self.bridge.cv2_to_imgmsg(binary_blue))
 
     def arm_process(self, msg):
         (frame, hsv) = self.start_process(msg)
