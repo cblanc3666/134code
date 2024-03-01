@@ -61,7 +61,7 @@ class ArmState(Enum):
 
 
 # Holding position over the table
-IDLE_POS = np.array([0.0, 1.4, 1.4, 0.0, 0.0])
+IDLE_POS = np.array([0, 1.4, 1.4, 0.0, 0.0])
 OPEN_GRIP = 0.0
 CLOSED_GRIP = -0.8 
 IDLE_ALPHA = 0.0
@@ -98,7 +98,7 @@ TAU_GRIP = -6.0
 ALPHA_J = np.array([0, 1, 1, 1, 0])
 BETA_J = np.array([1, 0, 0, 0, 1])
 
-TRACK_DISPLACEMENT_FORWARDS = 0.08
+TRACK_DISPLACEMENT_FORWARDS = 0.06
 TRACK_DISPLACEMENT_SIDE = -0.025
 
 HOVER_HEIGHT = 0.07
@@ -273,7 +273,7 @@ class VanderNode(Node):
         y = posemsg.position.y
         z = TRACK_DEPTH
         angle = 2 * np.arcsin(posemsg.orientation.z)
-        self.get_logger().info("Found track at (%r, %r) with angle %r" % (x, y, angle))
+        # self.get_logger().info("Found track at (%r, %r) with angle %r" % (x, y, angle))
         self.gotopoint(x,y,z, beta=angle)
 
     def recvtrack_pink(self, posemsg):
@@ -299,13 +299,13 @@ class VanderNode(Node):
         side1 = np.linalg.norm(points[1] - points[0]) + np.linalg.norm(points[2] - points[3])
         side2 = np.linalg.norm(points[2] - points[1]) + np.linalg.norm(points[3] - points[0])
         
-        if side1 > side2:
-            long_side = ((points[0] - points[1]) + (points[3] - points[2]))/2
+        if side1 < side2:
+            short_side = ((points[0] - points[1]) + (points[3] - points[2]))/2
         else:
-            long_side = ((points[2] - points[1]) + (points[3] - points[0]))/2
+            short_side = ((points[1] - points[2]) + (points[0] - points[3]))/2
         
         centroid = np.mean(points, 0)
-        direction_vec = long_side / np.linalg.norm(long_side)
+        direction_vec = short_side / np.linalg.norm(short_side)
 
 
         return (centroid, direction_vec)
@@ -319,13 +319,12 @@ class VanderNode(Node):
         (centroid, direction) = self.green_rect_position(positions)
         direction_90 = np.array([[-direction[1][0]], [direction[0][0]], [direction[2][0]]])
         
-
         align_point = centroid + direction * TRACK_DISPLACEMENT_FORWARDS
         align_point += direction_90 * TRACK_DISPLACEMENT_SIDE
         
         self.align_position = align_point
         self.align_position[2][0] = TRACK_DEPTH + HOVER_HEIGHT
-        self.align_position = self.align_position.flatten()
+        self.align_position = np.array(self.align_position.flatten())
 
 
     def gotopoint(self, x, y, z, beta=0):
@@ -336,7 +335,11 @@ class VanderNode(Node):
         self.arm_state = ArmState.GOTO
 
         # Arm Closed - TODO make this smarter so it knows when it has a track, and knows how to offset given which track we have
+        # self.get_logger().info("ARM CLOSED??? %r" % abs(self.qg[5] - OPEN_GRIP))
         if abs(self.qg[5] - OPEN_GRIP) > 0.1:
+            # self.get_logger().info("Current state %r" % self.arm_state)
+            self.get_logger().info("CLOSE, GOTO POINT %r" % self.qg[5])
+
             x -= np.sin(beta) * TRACK_OFFSET
             y -= np.cos(beta) * TRACK_OFFSET
             z += HOVER_HEIGHT
@@ -355,7 +358,7 @@ class VanderNode(Node):
     
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):        
-        self.get_logger().info("Current state %r" % self.arm_state)
+        # self.get_logger().info("Current state %r" % self.arm_state) # TODO turn back on
         # Time since start
         time = self.get_clock().now().nanoseconds * 1e-9
 
@@ -424,23 +427,27 @@ class VanderNode(Node):
 
                 # Sets up next spline since base and elbow joints start at arbitrary positions
                 self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, OPEN_GRIP, ArmState.RETURN.duration)
+                self.get_logger().info("gripper at START EMPTY %r" % self.qg[5])
             
         elif self.arm_state == ArmState.RETURN:
             if self.SQ.isEmpty():
                 # TODO we're better than this
-                qg = np.append(IDLE_POS, OPEN_GRIP)
+                qg = np.append(IDLE_POS, self.qg[5])
                 qgdot = np.append(ZERO_QDOT, GRIP_ZERO_QDOT)
                 self.arm_state = ArmState.IDLE
+                self.get_logger().info("gripper at RETURN %r" % self.qg[5])
 
         elif self.arm_state == ArmState.HOLD: 
             if self.SQ.isEmpty():
                 self.arm_state = ArmState.RETURN
-                self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, self.qg[5], ArmState.RETURN.duration)             
+                self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, self.qg[5], ArmState.RETURN.duration) 
+                self.get_logger().info("gripper at HOLD %r" % self.qg[5])            
 
         elif self.arm_state == ArmState.GOTO:
             # Moving to commanded point
             if self.SQ.isEmpty():
                 # gripper needs to close
+
                 if abs(self.qg[5] - OPEN_GRIP) < 0.1:
                     self.arm_state = ArmState.HOLD
 
@@ -448,6 +455,7 @@ class VanderNode(Node):
 
                     # stay put during hold
                     self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, CLOSED_GRIP, ArmState.HOLD.duration)
+                    self.get_logger().info("gripper at GOTO W ARM OPEN%r" % self.qg[5])
                     
                 else:
                     self.arm_state = ArmState.ALIGN
@@ -457,10 +465,19 @@ class VanderNode(Node):
                     (ptip, _, _, _) = self.chain.fkin(self.qg[0:5])
 
                     align_goal = self.align_position
-                    align_goal = np.append(align_goal, ptip[3][0], ptip[4][0])
+                    alpha = self.qg[1]-self.qg[2]+self.qg[3]
+                    beta = self.qg[0]-self.qg[4]
+                    self.get_logger().info("ALPHA%r" % alpha)
+                    self.get_logger().info("BETA%r" % type(beta))
+                    self.get_logger().info("ALIGN GOAL%r" % type(align_goal))
+
+
+                    align_goal = np.append(align_goal, [alpha, beta])
 
                     down_goal = np.copy(align_goal)
                     down_goal[2] -= (HOVER_HEIGHT + 0.01)
+
+                    self.get_logger().info("gripper at GOTO ALIGN %r" % qg)
 
                     # keep gripper closed
                     self.SQ.enqueue_task(align_goal, ZERO_VEL, self.qg[5], ArmState.ALIGN.duration)
@@ -480,6 +497,7 @@ class VanderNode(Node):
                 self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, self.qg[5], ArmState.RETURN.duration)
 
         elif self.arm_state == ArmState.IDLE:
+            self.get_logger().info("IDLE qg %r" % self.qg[5])
             qg = np.append(IDLE_POS, self.qg[5])
             qgdot = np.append(ZERO_QDOT, GRIP_ZERO_QDOT) # TODO figure out a better way to handle idle
 
@@ -492,14 +510,27 @@ class VanderNode(Node):
         # TODO make it a case statement
         # TODO always enqueue align and down together
 
+        # if self.arm_state != ArmState.IDLE and self.arm_state != ArmState.RETURN:
         if self.arm_state != ArmState.IDLE:
             qg, qgdot = self.SQ.evaluate()
+            # self.get_logger().info("queue length %r" % self.SQ.queueLength())
+
+
+        # if self.arm_state == ArmState.HOLD and abs(self.qg[5] - self.grip_position) < 0.1:
+        # if self.arm_state == ArmState.HOLD and abs(self.qg[5] - self.grip_position) < 0.1:
+        #     self.get_logger().info("DROPPED OR MISSED TRACK")
 
         self.qg = qg
         self.qgdot = qgdot
 
         self.cmdmsg.position = list(qg)
         self.cmdmsg.velocity = list(qgdot)
+
+        # self.get_logger().info("current gripper qg %r" % self.qg[5])
+        # self.get_logger().info("current gripper pos %r" % self.grip_position)
+
+        self.get_logger().info("current state %r" % self.arm_state)
+
 
         # Publish commands, makes robot move
         self.cmdpub.publish(self.cmdmsg)

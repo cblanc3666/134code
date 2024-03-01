@@ -41,7 +41,7 @@ class DetectorNode(Node):
     HSV_ORANGE = np.array([[4, 18], [80, 255], [30, 255]])
     HSV_PINK = np.array([[150, 180], [80, 255], [120, 255]])
     HSV_PURPLE = np.array([[160, 180], [140, 255], [120, 255]])
-    HSV_GREEN = np.array([[18, 150], [80, 255], [72, 255]])
+    HSV_GREEN = np.array([[15, 105], [0, 255], [0, 175]])
     HSV_BLUE = np.array([[87, 107], [170, 220], [175, 255]])
 
     # Take center of ArUco relative to world origin. X0, Y0

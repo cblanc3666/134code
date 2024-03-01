@@ -53,9 +53,10 @@ def init_processing(hsv, hsv_limits, iter):
     # Threshold in Hmin/max, Smin/max, Vmin/max
     binary = cv2.inRange(hsv, hsv_limits[:,0], hsv_limits[:,1])
 
-    binary = cv2.erode( binary, None, iterations=iter)
-    binary = cv2.dilate(binary, None, iterations=3*iter)
-    binary = cv2.erode( binary, None, iterations=iter)
+    if (iter > 0):
+        binary = cv2.erode( binary, None, iterations=iter)
+        binary = cv2.dilate(binary, None, iterations=3*iter)
+        binary = cv2.erode( binary, None, iterations=iter)
 
     # Find contours in the mask
     (contours, _) = cv2.findContours(binary, 

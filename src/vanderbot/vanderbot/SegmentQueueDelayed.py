@@ -286,6 +286,9 @@ class SegmentQueue():
 
     def isEmpty(self):
         return len(self.queue) == 0
+    
+    def queueLength(self):
+        return len(self.queue)
 
     def evaluate(self):
         '''

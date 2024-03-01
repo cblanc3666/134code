@@ -38,9 +38,9 @@ def generate_launch_description():
         executable = 'usb_cam_node_exe',
         namespace  = 'usb_cam',
         output     = 'screen',
-        parameters = ceil_cam_params,
+        parameters = arm_cam_params,
                       )
-
+    
     # Configure the HSV tuning utility node
     node_hsvtune = Node(
         name       = 'hsvtuner', 

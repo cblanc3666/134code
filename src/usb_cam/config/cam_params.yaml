@@ -46,7 +46,7 @@
                 {'image_width':         640},
                 {'image_height':        480},
                 {'framerate':           15.0},
-                {'brightness':          130},
+                {'brightness':          150},
                 {'contrast':            40},
                 {'saturation':          60},
                 {'sharpness':           200},
