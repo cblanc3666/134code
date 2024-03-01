@@ -35,17 +35,27 @@ class DetectorNode(Node):
     blue   = (  0,   0, 255)
     yellow = (255, 255,   0)
     white  = (255, 255, 255)
-    MIN_RECT_AREA = 800
+
+    # Relative value of camera resolution in pixels relative to 640x480
+    # Allows us to adjust pixel thresholds for contour size when we change resolution
+    # A value of 0.5 indicates a resolution of 320x240, for example
+    RESOLUTION = 0.5
+
+    # Minimum contour pixel areas, adjusted for resolution
+    MIN_TRACK_AREA = 700
+    MIN_NUB_AREA = 800 * RESOLUTION * RESOLUTION
 
     # Thresholds in Hmin/max, Smin/max, Vmin/max 
     HSV_ORANGE = np.array([[4, 18], [80, 255], [30, 255]])
     HSV_PINK = np.array([[150, 180], [80, 255], [120, 255]])
-    HSV_PURPLE = np.array([[160, 180], [140, 255], [120, 255]])
-    HSV_GREEN = np.array([[15, 105], [0, 255], [0, 175]])
+    HSV_PURPLE = np.array([[160, 180], [60, 255], [120, 255]])
+    HSV_GREEN = np.array([[20, 100], [0, 255], [0, 240]])
     HSV_BLUE = np.array([[87, 107], [170, 220], [175, 255]])
 
     # Take center of ArUco relative to world origin. X0, Y0
     CENTER = (0.0, 0.382)
+
+    
 
     # Initialization.
     def __init__(self, name):
@@ -94,9 +104,7 @@ class DetectorNode(Node):
         self.rect_pose_pink = self.create_publisher(PoseArray, "/RightTracksPink", n_images)
         self.rect_pose_blue = self.create_publisher(PoseArray, "/StraightTracksBlue", n_images)
         self.purple_circ = self.create_publisher(Point, "/PurpleCirc", n_images)
-        self.green_rect = self.create_publisher(Polygon, "/GreenRect", n_images)
-            # Difference in centers of purple and green rectangles in pixel space
-        self.pg_diff = self.create_publisher(Point, "/PurpleGreenDiff", n_images) 
+        self.green_rect = self.create_publisher(Polygon, "/GreenRect", n_images) 
 
     # Get camera info by subscribing to camera info topic
     def get_camera_info(self):
@@ -291,7 +299,7 @@ class DetectorNode(Node):
                                                                 self.CENTER, 
                                                                 self.ceil_camK, 
                                                                 self.ceil_camD,
-                                                                self.MIN_RECT_AREA,
+                                                                self.MIN_TRACK_AREA,
                                                                 markerCorners,
                                                                 markerIds)
                 if rectCenter is not None:
@@ -315,7 +323,7 @@ class DetectorNode(Node):
                                                                 self.CENTER, 
                                                                 self.ceil_camK, 
                                                                 self.ceil_camD,
-                                                                self.MIN_RECT_AREA,
+                                                                self.MIN_TRACK_AREA,
                                                                 markerCorners,
                                                                 markerIds)
 
@@ -339,7 +347,7 @@ class DetectorNode(Node):
                                                                 self.CENTER, 
                                                                 self.ceil_camK, 
                                                                 self.ceil_camD,
-                                                                self.MIN_RECT_AREA,
+                                                                self.MIN_TRACK_AREA,
                                                                 markerCorners,
                                                                 markerIds)
 
@@ -348,6 +356,7 @@ class DetectorNode(Node):
                     blue_poses.poses.append(pose_msg)
 
         if len(blue_poses.poses) is not 0:
+            # self.get_logger().info("Blue track angle %f" % np.arcsin(blue_poses.poses[0].orientation.z))
             self.rect_pose_blue.publish(blue_poses)
 
         # Convert the frame back into a ROS image and republish.
@@ -370,14 +379,14 @@ class DetectorNode(Node):
         green_rectangles = dh.get_rects(contours_green)
 
         green_rectCorners = dh.get_largest_green_rect(green_rectangles, frame, self.red)
-        purple_circCenter = dh.get_largest_purple_circ(purple_circles, frame, self.yellow)
-
+        purple_circCenter, purple_area = dh.get_largest_purple_circ(purple_circles, frame, self.yellow, self.MIN_NUB_AREA)
+        
         # Report the mapping.
         if green_rectCorners is not None:
             green_polygon_msg = Polygon()
             for point in green_rectCorners:
                 p = Point32()
-                point = np.float32(point)
+                point = 2*np.float32(point) # we multiply by two because we halved the camera resolution to improve framerate
                 point = cv2.undistortPoints(point, self.arm_camK, self.arm_camD)
                 p.x = float(point[0][0][0])
                 p.y = float(point[0][0][1])

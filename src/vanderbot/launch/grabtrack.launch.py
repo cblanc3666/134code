@@ -139,6 +139,12 @@ def generate_launch_description():
         remappings = [('/ceil_image_raw', '/ceilcam/image_raw'),
                       ('/arm_image_raw', '/armcam/image_raw')])
 
+    node_gamestate = Node(
+        name       = 'gamestate', 
+        package    = 'vanderbot',
+        executable = 'gamestate',
+        output     = 'screen')
+
 
     ######################################################################
     # COMBINE THE ELEMENTS INTO ONE LIST
@@ -156,4 +162,5 @@ def generate_launch_description():
         node_trackdetector,
 
         node_actuate,
+        node_gamestate
     ])

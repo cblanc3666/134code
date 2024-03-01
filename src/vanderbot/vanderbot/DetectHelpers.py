@@ -165,16 +165,19 @@ Arguments:
 Return:
     purple_circCenter  - point representing center of purple circular contour
 '''
-def get_largest_purple_circ(purple_circles, frame, color):
+def get_largest_purple_circ(purple_circles, frame, color, thresh):
    if len(purple_circles) > 0:
       largest_circle = max(purple_circles, key = cv2.contourArea)
+      area = cv2.contourArea(largest_circle)
+      if area < thresh:
+         return None, None
       ((u_purple, v_purple), radius) = cv2.minEnclosingCircle(largest_circle)
       purple_circCenter = [u_purple, v_purple]
       
       cv2.circle(frame, (int(u_purple), int(v_purple)), int(radius), color,  1)
-      return purple_circCenter
+      return purple_circCenter, area
    else:
-      return None
+      return None, None
             
 
 '''
