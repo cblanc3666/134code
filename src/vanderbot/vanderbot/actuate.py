@@ -85,6 +85,8 @@ class ArmState(Enum):
     PLACE = 6.0, []
     RELEASE = 2.0, [] # release grip on track
 
+
+
 #   Track colors
 #   Stores an angle offset used to align track with arm camera
 #   Angle offset is angle of track relative to green rectangle pose
@@ -128,7 +130,7 @@ Q_COLLISION_THRESHOLD = 0.07 # TODO
 QDOT_COLLISION_THRESHOLD = 0.5 # TODO
 
 # track height to grab at
-TRACK_DEPTH = 0.12
+TRACK_DEPTH = 0.135
 
 # final gravity torque values (to attain as gravity is splined in)
 GRAV_ELBOW = -6.5
@@ -147,6 +149,8 @@ TRACK_DISPLACEMENT_SIDE = 0.025
 
 HOVER_HEIGHT = 0.07
 CHECK_HEIGHT = 0.05
+
+
 
 #
 #   Vanderbot Node Class
@@ -633,6 +637,9 @@ class VanderNode(Node):
 
         self.cmdmsg.position = list(qg)
         self.cmdmsg.velocity = list(qgdot)
+
+        # track_error = self.chain.fkin(self.qg[:5])[0]-self.chain.fkin(self.position)[0]
+        # self.get_logger().info("tracking error %r" % track_error)
 
         # self.get_logger().info("current gripper qg %r" % self.qg[5])
         # self.get_logger().info("current gripper pos %r" % self.grip_position)

@@ -4,6 +4,10 @@ from vanderbot.TransformHelpers  import *
 
 # ALL INPUTS AND OUTPUTS ARE FLAT
 
+# compensation for z error, which gets higher (grabbing too high) proportional
+# to radius from the origin of the space
+Z_COMPENSATION = 0.025
+
 def crossmat(e):
     e = e.flatten()
     return np.array([[  0.0, -e[2],  e[1]],
@@ -199,7 +203,7 @@ class SegmentQueue():
     is no current spline 
 
     '''
-    def __init__(self, fkin, rate=100.0, lam=20.0, gamma=0.1) -> None:
+    def __init__(self, fkin, rate=100.0, lam=20.0, gamma=0.4) -> None:
         '''
         q: The initial joint space configuration of the robot.     
         qdot: The initial joint space velocity of the robot.     
@@ -219,6 +223,7 @@ class SegmentQueue():
         self.gamma = gamma
 
     def enqueue_task(self, pf, vf, qgrip_f, T):
+        pf[2] -= Z_COMPENSATION * np.sqrt(pf[0]**2 + pf[1]**2)
         segment = TaskSpline(np.reshape(pf, (-1, 1)), np.reshape(vf, (-1, 1)), qgrip_f, T, self.lam, self.gamma, self.rate)
         self.enqueue(segment)
 

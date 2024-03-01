@@ -111,19 +111,19 @@ class GameState(Node):
             Pose 2: If the track is the starting track, pose is hard coded in self.START_LOC.
                     Else, pose is the center and angle of the last track placed
         """
-        self.get_logger().info("Blue Tracks %r" % len(self.blue_tracks))
-        self.get_logger().info("Orange Tracks %r" % len(self.orange_tracks))
-        self.get_logger().info("Pink Tracks %r" % len(self.pink_tracks))
+        # self.get_logger().info("Blue Tracks %r" % len(self.blue_tracks))
+        # self.get_logger().info("Orange Tracks %r" % len(self.orange_tracks))
+        # self.get_logger().info("Pink Tracks %r" % len(self.pink_tracks))
 
         #TODO receive "placed" message from actuate instead of gamestate
         if len(self.blue_tracks) == 0 or len(self.orange_tracks) == 0 or len(self.pink_tracks) == 0:
             return
         
-        self.get_logger().info("Reached here")
+        # self.get_logger().info("Reached here")
 
         if len(self.important_tracks) == 0:
-            self.important_tracks = [self.blue_tracks[0], self.pink_tracks[0],
-                                     self.blue_tracks[1], self.orange_tracks[0]]
+            self.important_tracks = [self.blue_tracks[0], self.blue_tracks[1],
+                                     self.blue_tracks[2], self.blue_tracks[3]]
 
         final_pose = PoseArray()
         posemsg_cur = self.important_tracks[0].pose
