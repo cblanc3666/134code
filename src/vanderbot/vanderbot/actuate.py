@@ -19,7 +19,7 @@ from geometry_msgs.msg          import Point, Pose, Quaternion, Polygon, PoseArr
 from vanderbot.Segments          import Hold, Stay, Goto5, QuinticSpline
 from vanderbot.KinematicChain    import KinematicChain
 from vanderbot.TransformHelpers  import *
-from std_msgs.msg               import Float32
+from std_msgs.msg               import Float32, String
 
 # ros2 topic pub -1 /point geometry_msgs/msg/Point "{x: 0.2, y: 0.3, z: 0.1}"
 
@@ -84,6 +84,7 @@ class ArmState(Enum):
     ALIGN = 4.0, []
     PLACE = 6.0, []
     RELEASE = 2.0, [] # release grip on track
+    LIE_DOWN = 1.0, [] # tells arm to go to lying down position, no matter what it is doing
 
 
 
@@ -108,6 +109,10 @@ class TrackColor(Enum):
 
 # Holding position over the table
 IDLE_POS = np.array([0, 1.4, 1.4, 0.0, 0.0])
+
+# Position lying straight out over table
+DOWN_POS = np.array([0, 0.0, 0.55, 0.0, 0.0])
+
 OPEN_GRIP = -0.2
 CLOSED_GRIP = -0.8
 IDLE_ALPHA = 0.0
@@ -172,6 +177,7 @@ class VanderNode(Node):
     start_time = 0 # time of initialization
 
     arm_state = ArmState.START # initialize state machine
+    arm_killed = False # true when someone wants the arm to die
     track_color = None
 
     align_position = None
@@ -218,7 +224,7 @@ class VanderNode(Node):
                               OPEN_GRIP,
                               ArmState.START.duration)
         
-        # Spline gravity in gradually TODO handle this
+        # Spline gravity in gradually TODO handle this using segmentqueue
         ArmState.START.segments.append(Goto5(np.array([self.grav_shoulder, self.grav_elbow]),
                                              np.array([GRAV_SHOULDER, GRAV_ELBOW]),
                                              ArmState.START.duration,
@@ -244,7 +250,7 @@ class VanderNode(Node):
         self.get_logger().info("Sending commands with dt of %f seconds (%fHz)" %
                                (self.timer.timer_period_ns * 1e-9, rate))
         
-        self.fbksub = self.create_subscription(
+        self.pointsub = self.create_subscription(
             Point, '/point', self.recvpoint, 10)
         
         self.sent_track = self.create_subscription(
@@ -257,6 +263,10 @@ class VanderNode(Node):
             Point, '/PurpleCirc', self.recvpurplecirc, 10)
         
         self.placed_track_pub = self.create_publisher(Pose, '/PlacedTrack', 10)
+
+        # publisher to tell the arm to lie down so we can kill it safely
+        self.liedown = self.create_subscription(
+            String, '/LieDown', self.recvStr, 10)
         
         # Report.
         self.get_logger().info("Running %s" % name)
@@ -311,6 +321,10 @@ class VanderNode(Node):
         self.grip_qdot = qdot[5]
         self.grip_effort = effort[5]
 
+    def recvStr(self, strmsg):
+        if strmsg.data == "LieDown":
+            self.arm_state = ArmState.LIE_DOWN
+            self.arm_killed = True
 
     def recvpoint(self, pointmsg):
         # Extract the data.
@@ -382,7 +396,8 @@ class VanderNode(Node):
         self.purple_visible = True
 
     def gotopoint(self, x, y, z, beta=0):
-        if self.arm_state != ArmState.IDLE: 
+        # Don't goto if not idle, or if we want arm to die
+        if self.arm_state != ArmState.IDLE or self.arm_killed == True: 
             # self.get_logger().info("Already commanded!")
             return
 
@@ -471,7 +486,19 @@ class VanderNode(Node):
         qg = None
         qgdot = None
 
-        if self.arm_state == ArmState.START:
+        if self.arm_state == ArmState.LIE_DOWN:
+            # stop all motion
+            self.SQ.clear()
+
+            # note - if this lie down command happens during the start while
+            # gravity is being splined in, gravity will continue to spline in
+            # gradually 
+            self.arm_state = ArmState.RETURN
+
+            # go down
+            self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, OPEN_GRIP, ArmState.RETURN.duration)
+            self.SQ.enqueue_joint(DOWN_POS, ZERO_QDOT, OPEN_GRIP, 2*ArmState.RETURN.duration)
+        elif self.arm_state == ArmState.START:
             # evaluate gravity constants too
             self.grav_shoulder = ArmState.START.segments[0].evaluate(time-self.start_time)[0][0] # first index takes "position" from spline
             self.grav_elbow = ArmState.START.segments[0].evaluate(time-self.start_time)[0][1] # TODO figure out a way to get rid of this
@@ -488,14 +515,15 @@ class VanderNode(Node):
             
         elif self.arm_state == ArmState.RETURN:
             if self.SQ.isEmpty():
-                # TODO we're better than this
-                qg = np.append(IDLE_POS, self.qg[5])
-                qgdot = np.append(ZERO_QDOT, GRIP_ZERO_QDOT)
+                # need to set qg and qgdot to stay at what they are right now
+                qg = self.qg
+                qgdot = self.qgdot
                 self.arm_state = ArmState.IDLE
         
         elif self.arm_state == ArmState.IDLE:
-            qg = np.append(IDLE_POS, self.qg[5])
-            qgdot = np.append(ZERO_QDOT, GRIP_ZERO_QDOT)
+            # Hold current desired position
+            qg = self.qg
+            qgdot = self.qgdot
 
         elif self.arm_state == ArmState.GOTO_PICKUP:
             if self.SQ.isEmpty():                
@@ -617,13 +645,12 @@ class VanderNode(Node):
         else:
             self.get_logger().info("Arm in unknown state")
             self.arm_state = ArmState.RETURN
-            self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, self.qg[5], ArmState.RETURN.duration)
+            self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, OPEN_GRIP, ArmState.RETURN.duration)
 
         # TODO wrap everyting in self.SQ.isEmpty()
         # TODO make it a case statement
         # TODO always enqueue align and down together
 
-        # if self.arm_state != ArmState.IDLE and self.arm_state != ArmState.RETURN:
         if self.arm_state != ArmState.IDLE:
             qg, qgdot = self.SQ.evaluate()
             # self.get_logger().info("queue length %r" % self.SQ.queueLength())

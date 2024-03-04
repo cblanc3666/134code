@@ -5,5 +5,8 @@ ros2 launch basic134 [launch_file_name]
 ros2 launch basic134 demo134.launch.py
 ros2 topic pub -1 /point geometry_msgs/msg/Point "{x: 0.0, y: 0.229, z: 0.0}"
 
+TO KILL THE ARM:
+ros2 topic pub -1 /LieDown std_msgs/msg/String "{data: 'LieDown'}"
+
 ros2 launch detectors demodetector.launch.py
 ros2 launch basic134 viewcommand.launch.py
