@@ -38,7 +38,7 @@ import numpy as np
 from geometry_msgs.msg  import Point, Pose2D, Pose, Quaternion, Polygon, Point32
 
 '''
-Creates initial binary for a color, erodes, dilates, and finds contours
+Creates initial binary for a color, erodes, dilates
 
 Arguments:
 hsv         - the OpenCV image from the camera in HSV format
@@ -46,7 +46,6 @@ hsv_limits  - the HSV limits of the desired color
 iter        - the number of iterations of erode/dilate to do
 
 Returns:
-contours    - the detected contours
 binary      - the binary produced by this detection
 '''
 def init_processing(hsv, hsv_limits, iter):
@@ -58,29 +57,29 @@ def init_processing(hsv, hsv_limits, iter):
         binary = cv2.dilate(binary, None, iterations=3*iter)
         binary = cv2.erode( binary, None, iterations=iter)
 
-    # Find contours in the mask
-    (contours, _) = cv2.findContours(binary, 
-                                     cv2.RETR_EXTERNAL, 
-                                     cv2.CHAIN_APPROX_SIMPLE)
-    
-    # Draw all contours on the original image for debugging.
-    #cv2.drawContours(frame, contours, -1, self.blue, 2)
-
-    return (contours, binary) 
+    return binary
 
 '''
 Given contours, returns a list of min-area rectangles found from those contours
 It can also filter out rectangles that are too square.
 Arguments:
-contours    - the detected contours
+binary - the binary used to do detection
 
 Returns:
 rectangles  - min-area rectangular contours that aren't too square
 '''
 
-def get_rects(contours):
-   rectangles = []
-   if len(contours) > 0:
+def get_rects(binary):
+    # Find contours in the mask
+    (contours, _) = cv2.findContours(binary, 
+    cv2.RETR_EXTERNAL, 
+    cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Draw all contours on the original image for debugging.
+    #cv2.drawContours(frame, contours, -1, self.blue, 2)
+   
+    rectangles = []
+    if len(contours) > 0:
       for cnt in contours:
             # comparing min rectangle and contour areas
             rotated_rect = cv2.minAreaRect(cnt)
@@ -97,23 +96,30 @@ def get_rects(contours):
             if aspect_ratio > 1.1:
                rectangles.append(cnt)
 
-   return rectangles
+    return rectangles
 
 
 '''
 Given contours, returns a list of min-enclosing circles found from those contours.
 Ignores contours that aren't circular enough
 Arguments:
-contours    - the detected contours
+binary - the binary used to do detection
 
 Returns:
 circles  - min-enclosing circle
 '''
 
-def get_circs(contours):
-   circles = []
-   if len(contours) > 0:
-      for cnt in contours:
+def get_circs(binary):
+    # Find contours in the mask
+    (contours, _) = cv2.findContours(binary, 
+                                     cv2.RETR_EXTERNAL, 
+                                     cv2.CHAIN_APPROX_SIMPLE)
+    
+    # Draw all contours on the original image for debugging.
+    #cv2.drawContours(frame, contours, -1, self.blue, 2)
+    circles = []
+    if len(contours) > 0:
+        for cnt in contours:
             rotated_rect = cv2.minAreaRect(cnt)
 
             # aspect ratio of contour, if large then its a rectangle
@@ -127,7 +133,7 @@ def get_circs(contours):
 
             if aspect_ratio < 1.4: # to avoid finding a purple rectangle
                circles.append(cnt)
-   return circles
+    return circles
 
 
 

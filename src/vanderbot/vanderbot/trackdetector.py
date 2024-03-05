@@ -49,7 +49,8 @@ class DetectorNode(Node):
     HSV_ORANGE = np.array([[4, 18], [80, 255], [30, 255]])
     HSV_PINK = np.array([[150, 180], [80, 255], [120, 255]])
     HSV_PURPLE = np.array([[160, 180], [60, 255], [120, 255]])
-    HSV_GREEN = np.array([[20, 100], [0, 255], [0, 240]])
+    HSV_GREEN_CEIL = np.array([[36, 100], [52, 255], [0, 255]])
+    HSV_GREEN_ARM = np.array([[20, 100], [0, 255], [0, 240]])
     HSV_BLUE = np.array([[87, 107], [170, 220], [175, 255]])
 
     # Take center of ArUco relative to world origin. X0, Y0
@@ -94,6 +95,7 @@ class DetectorNode(Node):
         self.ceil_pubbin_orange = self.create_publisher(Image, name+'/ceil_binary_orange', n_images)
         self.ceil_pubbin_pink = self.create_publisher(Image, name+'/ceil_binary_pink', n_images)
         self.ceil_pubbin_blue = self.create_publisher(Image, name+'/ceil_binary_blue', n_images)
+        self.ceil_pubbin_green = self.create_publisher(Image, name+'/ceil_binary_green', n_images)
 
         self.arm_pubrgb = self.create_publisher(Image, name+'/arm_image_raw', n_images)
         self.arm_pubbin_purple = self.create_publisher(Image, name+'/arm_binary_purple', n_images)
@@ -270,16 +272,22 @@ class DetectorNode(Node):
         # Capture, convert image, and mark its center
         (frame, hsv) = self.start_process(msg)
 
-        (contours_orange, binary_orange) = dh.init_processing(hsv, self.HSV_ORANGE, iter=1)
-        (contours_pink,   binary_pink)   = dh.init_processing(hsv, self.HSV_PINK,   iter=1)
-        (contours_blue,   binary_blue)   = dh.init_processing(hsv, self.HSV_BLUE,   iter=1)
+        binary_orange = dh.init_processing(hsv, self.HSV_ORANGE, iter=1)
+        binary_pink   = dh.init_processing(hsv, self.HSV_PINK,   iter=1)
+        binary_blue   = dh.init_processing(hsv, self.HSV_BLUE,   iter=1)
+        binary_green  = dh.init_processing(hsv, self.HSV_GREEN_CEIL,  iter=1)
+        
+        # add green ends to all of the tracks
+        binary_orange = cv2.bitwise_or(binary_orange, binary_green)
+        binary_pink = cv2.bitwise_or(binary_orange, binary_pink)
+        binary_blue = cv2.bitwise_or(binary_orange, binary_blue)
         
         # Only proceed if at least one contour was found.  You may
         # also want to loop over the contours...
 
-        orange_rectangles = dh.get_rects(contours_orange)
-        pink_rectangles = dh.get_rects(contours_pink)
-        blue_rectangles = dh.get_rects(contours_blue)
+        orange_rectangles = dh.get_rects(binary_orange)
+        pink_rectangles = dh.get_rects(binary_pink)
+        blue_rectangles = dh.get_rects(binary_blue)
                     
         markerCorners, markerIds, _ = cv2.aruco.detectMarkers(
                 frame, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50))
@@ -288,7 +296,7 @@ class DetectorNode(Node):
         # for orange_rec in orange_rectangles:
 
         orange_poses = PoseArray()
-        if len(orange_rectangles) is not 0:
+        if len(orange_rectangles) != 0:
             for orange_rec in orange_rectangles:
                 #orange_rec = max(orange_rectangles, key=cv2.contourArea)
                 (rectCenter, world_angle, frame) = dh.get_track(orange_rec, 
@@ -307,12 +315,12 @@ class DetectorNode(Node):
                     orange_poses.poses.append(pose_msg)
                     #self.rect_pose_orange.publish(pose_msg)
 
-        if len(orange_poses.poses) is not 0:
+        if len(orange_poses.poses) != 0:
             self.rect_pose_orange.publish(orange_poses)
         # for pink_rec in pink_rectangles:
 
         pink_poses = PoseArray()
-        if len(pink_rectangles) is not 0:
+        if len(pink_rectangles) != 0:
             for pink_rec in pink_rectangles:
                 #pink_rec = max(pink_rectangles, key=cv2.contourArea)
                 (rectCenter, world_angle, frame) = dh.get_track(pink_rec, 
@@ -332,11 +340,11 @@ class DetectorNode(Node):
                     pink_poses.poses.append(pose_msg)
                     #self.rect_pose_pink.publish(pose_msg)
 
-        if len(pink_poses.poses) is not 0:
+        if len(pink_poses.poses) != 0:
             self.rect_pose_pink.publish(pink_poses)
 
         blue_poses = PoseArray()
-        if len(blue_rectangles) is not 0:
+        if len(blue_rectangles) != 0:
             for blue_rec in blue_rectangles:
                 #blue_rec = max(blue_rectangles, key=cv2.contourArea)
                 (rectCenter, world_angle, frame) = dh.get_track(blue_rec, 
@@ -355,7 +363,7 @@ class DetectorNode(Node):
                     pose_msg = dh.get_rect_pose_msg(rectCenter, world_angle)
                     blue_poses.poses.append(pose_msg)
 
-        if len(blue_poses.poses) is not 0:
+        if len(blue_poses.poses) != 0:
             # self.get_logger().info("Blue track angle %f" % np.arcsin(blue_poses.poses[0].orientation.z))
             self.rect_pose_blue.publish(blue_poses)
 
@@ -366,17 +374,18 @@ class DetectorNode(Node):
         self.ceil_pubbin_orange.publish(self.bridge.cv2_to_imgmsg(binary_orange))
         self.ceil_pubbin_pink.publish(self.bridge.cv2_to_imgmsg(binary_pink))
         self.ceil_pubbin_blue.publish(self.bridge.cv2_to_imgmsg(binary_blue))
+        self.ceil_pubbin_green.publish(self.bridge.cv2_to_imgmsg(binary_green))
 
     def arm_process(self, msg):
         (frame, hsv) = self.start_process(msg)
         
-        (contours_purple, binary_purple) = dh.init_processing(hsv, self.HSV_PURPLE, iter=1)
-        (contours_green,  binary_green)  = dh.init_processing(hsv, self.HSV_GREEN,  iter=1)
+        binary_purple = dh.init_processing(hsv, self.HSV_PURPLE, iter=1)
+        binary_green  = dh.init_processing(hsv, self.HSV_GREEN_ARM,  iter=1)
         
         # Only proceed if at least one contour was found.  You may
         # also want to loop over the contours...
-        purple_circles = dh.get_circs(contours_purple)
-        green_rectangles = dh.get_rects(contours_green)
+        purple_circles = dh.get_circs(binary_purple)
+        green_rectangles = dh.get_rects(binary_green)
 
         green_rectCorners = dh.get_largest_green_rect(green_rectangles, frame, self.red)
         purple_circCenter, purple_area = dh.get_largest_purple_circ(purple_circles, frame, self.yellow, self.MIN_NUB_AREA)
