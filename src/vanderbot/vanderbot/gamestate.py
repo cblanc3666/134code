@@ -122,8 +122,8 @@ class GameState(Node):
         # self.get_logger().info("Reached here")
 
         if len(self.important_tracks) == 0:
-            self.important_tracks = [self.blue_tracks[0], self.blue_tracks[1],
-                                     self.blue_tracks[2], self.blue_tracks[3]]
+            self.important_tracks = [self.blue_tracks[0], self.pink_tracks[0],
+                                     self.orange_tracks[0], self.blue_tracks[1]]
 
         final_pose = PoseArray()
         posemsg_cur = self.important_tracks[0].pose

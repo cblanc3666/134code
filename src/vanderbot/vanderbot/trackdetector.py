@@ -279,8 +279,8 @@ class DetectorNode(Node):
         
         # add green ends to all of the tracks
         binary_orange = cv2.bitwise_or(binary_orange, binary_green)
-        binary_pink = cv2.bitwise_or(binary_orange, binary_pink)
-        binary_blue = cv2.bitwise_or(binary_orange, binary_blue)
+        binary_pink = cv2.bitwise_or(binary_pink, binary_green)
+        binary_blue = cv2.bitwise_or(binary_blue, binary_green)
         
         # Only proceed if at least one contour was found.  You may
         # also want to loop over the contours...

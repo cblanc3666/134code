@@ -150,7 +150,7 @@ ALPHA_J = np.array([0, 1, 1, 1, 0])
 BETA_J = np.array([1, 0, 0, 0, 1])
 
 TRACK_DISPLACEMENT_FORWARDS = -0.08
-TRACK_DISPLACEMENT_SIDE = 0.025
+TRACK_DISPLACEMENT_SIDE = 0.0 #0.025
 
 HOVER_HEIGHT = 0.07
 CHECK_HEIGHT = 0.05
@@ -431,7 +431,7 @@ class VanderNode(Node):
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):        
         # self.get_logger().info("Desired point %r" % self.desired_pt)
-        # self.get_logger().info("Current state %r" % self.arm_state) # TODO turn back on
+        # self.get_logger().info("Current state %r" % self.arm_state) # TODO turn back on; watermelon
         # Time since start
         time = self.get_clock().now().nanoseconds * 1e-9
 
