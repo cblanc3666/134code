@@ -218,25 +218,30 @@ def get_track(rectangle, frame, color1, color2, pixelToWorld, center, camK, camD
     if rect_area < min_rect_area:
        return (None, None, frame) # don't want this rectangle
 
-    # Draw the rotated rectangle on the original image
     box = np.int0(cv2.boxPoints(((um, vm), (wm, hm), angle)))
     cv2.circle(frame, (int(um), int(vm)), 1, color1, 2)
-    cv2.drawContours(frame, [box], 0, color2, 2)
+
     if wm < hm:
         angle += 90
     rectCenter = pixelToWorld(frame, um, vm, x0, y0, markerCorners, markerIds, camK, camD, angle = angle)
-    world_coords = []
-    for coord in box:
-        transformed_pt = pixelToWorld(frame, coord[0], coord[1], x0, y0, markerCorners,
-                                        markerIds, camK, camD, angle = angle, annotateImage=False)
-        world_coords.append(transformed_pt)
-
+    
+    # catch if rectangle is on the wrong table
     if rectCenter is not None:
         y = rectCenter[1]
         if y <= LOWER_Y_THRESHOLD:
             world_angle = None
-            rectCenter = None # error in detection
-            return (rectCenter, world_angle, frame)
+            rectCenter = None
+            return (rectCenter, world_angle, frame) # don't want this rectangle
+        
+    # Draw the rotated rectangle on the original image ONLY if we want it
+    cv2.drawContours(frame, [box], 0, color2, 2)
+
+    world_coords = []
+
+    for coord in box:
+        transformed_pt = pixelToWorld(frame, coord[0], coord[1], x0, y0, markerCorners,
+                                        markerIds, camK, camD, angle = angle, annotateImage=False)
+        world_coords.append(transformed_pt)
 
     norm1 = 0
     norm2 = 0

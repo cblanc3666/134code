@@ -292,8 +292,6 @@ class DetectorNode(Node):
         markerCorners, markerIds, _ = cv2.aruco.detectMarkers(
                 frame, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50))
 
-        # TODO start looping through all rectangles instead of taking the largest
-        # for orange_rec in orange_rectangles:
 
         orange_poses = PoseArray()
         if len(orange_rectangles) != 0:

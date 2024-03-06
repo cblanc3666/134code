@@ -282,8 +282,8 @@ class VanderNode(Node):
         self.destroy_node()
 
     def arm_pixel_to_position(self, x, y):
-        # pass
         (pcam, Rcam, _, _) = self.cam_chain.fkin(np.reshape(self.position, (-1, 1)))
+        # self.get_logger().info(f"pcam x {pcam[0][0]} y {pcam[1][0]}")
         z = pcam[2][0]
         lamb = -z / np.dot([0, 0, 1], Rcam @ np.array([[x], [y], [1]]))
 
@@ -381,8 +381,10 @@ class VanderNode(Node):
         positions = []
         for corner in msg.points:
             positions.append(self.arm_pixel_to_position(corner.x, corner.y))
+            
         
         (centroid, direction) = self.green_rect_position(positions)
+        # self.get_logger().info(f"Centroid of green rect x {centroid[0][0]} y {centroid[1][0]}")
         direction_90 = np.array([[-direction[1][0]], [direction[0][0]], [direction[2][0]]])
         
         align_point = centroid + direction * TRACK_DISPLACEMENT_FORWARDS
