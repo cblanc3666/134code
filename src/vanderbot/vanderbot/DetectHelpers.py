@@ -37,6 +37,8 @@ import numpy as np
 
 from geometry_msgs.msg  import Point, Pose2D, Pose, Quaternion, Polygon, Point32
 
+LOWER_Y_THRESHOLD = 0
+
 '''
 Creates initial binary for a color, erodes, dilates
 
@@ -228,6 +230,13 @@ def get_track(rectangle, frame, color1, color2, pixelToWorld, center, camK, camD
         transformed_pt = pixelToWorld(frame, coord[0], coord[1], x0, y0, markerCorners,
                                         markerIds, camK, camD, angle = angle, annotateImage=False)
         world_coords.append(transformed_pt)
+
+    if rectCenter is not None:
+        y = rectCenter[1]
+        if y <= LOWER_Y_THRESHOLD:
+            world_angle = None
+            rectCenter = None # error in detection
+            return (rectCenter, world_angle, frame)
 
     norm1 = 0
     norm2 = 0
