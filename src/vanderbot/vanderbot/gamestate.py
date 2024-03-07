@@ -140,9 +140,9 @@ class GameState(Node):
             prev_position = self.placed_tracks[len(self.placed_tracks) - 1].pose.position
             prev_orientation = self.placed_tracks[len(self.placed_tracks) - 1].pose.orientation
             posemsg_dest = Pose()
-            posemsg_dest.orientation.x = self.STATES[self.important_tracks[0].track_type]
             posemsg_dest.position = prev_position
             posemsg_dest.orientation = prev_orientation
+            posemsg_dest.orientation.x = self.STATES[self.important_tracks[0].track_type]
 
         final_pose.poses.append(posemsg_cur)
         final_pose.poses.append(posemsg_dest)

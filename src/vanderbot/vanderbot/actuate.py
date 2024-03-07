@@ -45,25 +45,6 @@ class ArmState(Enum):
         self.duration = duration
         self.segments = segments
 
-    # START = 7.0, []  # initial state
-    # GOTO  = 7.0, []  # moving to a commanded point, either from IDLE_POS or a 
-    #                 # previously commanded point
-    # CHECK_GRIP = 2.0, []    # state allowing detector to check if we are about to
-    #                         # grip track correctly
-    # RETURN = 7.0, [] # moving back to IDLE_POS, either because no other point has 
-    #                 # been commanded or because the next point is too far from
-    #                 # the previous point
-    #                 # Returning ALWAYS uses a joint space spline
-    # IDLE = None, []  # nothing commanded, arm is at IDLE_POS
-    # HOLD = 2.0, []   # holding at a commanded point, preparing to return or move to
-    #                 # next point
-    
-    # ALIGN = 4.0, [] # align track to track below
-    # DOWN = 8.0, []  # lower track into place
-    # GRAB = 2.0, []  # grab onto track
-    # RELEASE = 2.0, [] # release grip on track
-
-    '''NEW STATES'''
     START = 6.0, []  # initial state
     RETURN = 4.0, [] # moving back to IDLE_POS, either because no other point has 
                     # been commanded or because the next point is too far from
@@ -82,7 +63,7 @@ class ArmState(Enum):
     RAISE_PICKUP = 2.0, []
     GOTO_PLACE = 6.0, []
     CHECK_ALIGN = 1.0, []
-    ALIGN = 4.0, []
+    ALIGN = 5.0, []
     PLACE = 6.0, []
     RELEASE = 2.0, [] # release grip on track
     LIE_DOWN = 1.0, [] # tells arm to go to lying down position, no matter what it is doing
@@ -154,6 +135,8 @@ BETA_J = np.array([1, 0, 0, 0, 1])
 TRACK_DISPLACEMENT_FORWARDS = -0.08
 TRACK_DISPLACEMENT_SIDE = 0.0 #0.025
 
+TRACK_TURN_RADIUS = 0.1299 # radius of a circle
+
 HOVER_HEIGHT = 0.07
 CHECK_HEIGHT = 0.05
 
@@ -180,7 +163,8 @@ class VanderNode(Node):
 
     arm_state = ArmState.START # initialize state machine
     arm_killed = False # true when someone wants the arm to die
-    track_color = None
+    track_type = None
+    
 
     align_position = None
 
@@ -188,6 +172,12 @@ class VanderNode(Node):
     
     # Indicates whether the arm camera can see the purple nub on the gripped track
     purple_visible = False
+    (purple_u, purple_v) = (None, None)
+    nub_r = None
+    nub_theta = None
+
+    green_centroid = None
+    green_orientation = None
 
     grav_elbow = 0 # start elbow torque constant at 0
     grav_shoulder = 0 # start shoulder torque constant at 0
@@ -351,7 +341,8 @@ class VanderNode(Node):
         y = curr_pose.position.y
         z = TRACK_DEPTH
 
-        beta = 2*np.arcsin(desired_pose.orientation.z) - curr_pose.orientation.x * np.pi/6 # angle offset for track type
+        self.track_type = curr_pose.orientation.x
+        beta = 2*np.arcsin(desired_pose.orientation.z) - self.track_type * np.pi/6 # angle offset for track type
 
         self.desired_pt = np.array([desired_pose.position.x, desired_pose.position.y, TRACK_DEPTH, 0.0, beta])
         angle = 2 * np.arcsin(curr_pose.orientation.z)
@@ -376,7 +367,6 @@ class VanderNode(Node):
         centroid = np.mean(points, 0)
         direction_vec = short_side / np.linalg.norm(short_side)
 
-
         return (centroid, direction_vec)
     
     def recvgreenrect(self, msg):
@@ -385,21 +375,23 @@ class VanderNode(Node):
             positions.append(self.arm_pixel_to_position(corner.x, corner.y))
             
         
-        (centroid, direction) = self.green_rect_position(positions)
-        # self.get_logger().info(f"Centroid of green rect x {centroid[0][0]} y {centroid[1][0]}")
-        direction_90 = np.array([[-direction[1][0]], [direction[0][0]], [direction[2][0]]])
+        (self.green_centroid, self.green_orientation) = self.green_rect_position(positions)
+
+        # #self.get_logger().info(f"Centroid of green rect x {centroid[0][0]} y {centroid[1][0]}")
+        # direction_90 = np.array([[-direction[1][0]], [direction[0][0]], [direction[2][0]]])
         
-        align_point = centroid + direction * TRACK_DISPLACEMENT_FORWARDS
-        align_point += direction_90 * TRACK_DISPLACEMENT_SIDE
+        # align_point = centroid + direction * TRACK_DISPLACEMENT_FORWARDS
+        # align_point += direction_90 * TRACK_DISPLACEMENT_SIDE
         
-        self.align_position = align_point
-        self.align_position[2][0] = TRACK_DEPTH + HOVER_HEIGHT
-        self.align_position = np.array(self.align_position.flatten())
+        # self.align_position = align_point
+        # self.align_position[2][0] = TRACK_DEPTH + HOVER_HEIGHT
+        # self.align_position = np.array(self.align_position.flatten())
 
     def recvpurplecirc(self, msg):
         self.purple_visible = True
-        x = msg.x
-        y = msg.y
+        self.purple_u = msg.x
+        self.purple_v = msg.y
+        # self.get_logger().info(f"Purple circle u {u} and v {v}")
 
     def gotopoint(self, x, y, z, beta=0):
         # Don't goto if not idle, or if we want arm to die
@@ -439,12 +431,15 @@ class VanderNode(Node):
     if r is none, we have cartesian offset
     if r is not none, then x and y offsets can be none
     '''
-    def goto_offset(self, qfgrip, next_state, x_offset, y_offset, z_offset, r=None):
+    def goto_offset(self, qfgrip, next_state, x_offset, y_offset, z_offset, r=None, theta=None):
         self.arm_state = next_state
         
         pgoal, _, _, _ = self.chain.fkin(self.qg[0:5])
         pgoal = pgoal.flatten()
 
+        if (theta != None):
+            self.qg[4] += theta
+        
         alpha = self.qg[1] - self.qg[2] + self.qg[3]
         beta = self.qg[0] - self.qg[4]
 
@@ -460,6 +455,63 @@ class VanderNode(Node):
         pgoal = np.append(pgoal, [alpha, beta])
 
         self.SQ.enqueue_task(pgoal, ZERO_VEL, qfgrip, next_state.duration)
+
+    '''
+    Does this by getting the world space coordinates of the purple nub.
+    This assumes that the track is on the table when it is called.
+    Run right after gripping track, when its still on the table
+    Finds the r and theta of the nub
+    '''
+    def get_nub_location(self):
+        ptip, _, _, _  = self.chain.fkin(self.qg[0:5])
+        ptip = ptip.flatten()
+
+        (x_ptip, y_ptip, _) = ptip
+
+        nub_u = np.copy(self.purple_u)
+        nub_v = np.copy(self.purple_v)
+
+        (x_pnub, y_pnub, _) = self.arm_pixel_to_position(nub_u, nub_v)
+
+        self.nub_r = np.sqrt((x_ptip - x_pnub)**2 + (y_ptip - y_pnub)**2 )
+        # TODO track type
+        self.nub_theta = self.track_type * np.arccos(1 - self.nub_r**2 / (2 * TRACK_TURN_RADIUS**2))
+
+    '''
+    Get offsets for the end effector to align grabbed track with green rectangle
+    * assuming slot is centroid of contour
+    '''
+    def align_calc(self):
+        centroid = np.copy(self.green_centroid)
+        cnt_x = centroid[0][0]
+        cnt_y = centroid[1][0]
+        direction_vec = np.linalg.norm(np.copy(self.green_orientation))
+        self.get_logger().info(f"Direction {direction_vec} x{centroid[0][0]} y {centroid[1][0]}")
+        self.get_logger().info(f"Nub theta {self.nub_theta}")
+
+        ptip, _, _, _  = self.chain.fkin(self.qg[0:5])
+        ptip = ptip.flatten()
+        (x_ptip, y_ptip, _) = ptip
+
+        # get offset of green contour from end effector
+        green_dx = x_ptip - cnt_x
+        green_dy = y_ptip - cnt_y
+
+        beta = self.qg[0] - self.qg[4]
+        gamma = self.nub_theta / 2
+
+        # offsets for the end effector
+        d_theta = direction_vec - self.nub_theta # need to align to the bottom of the green contour
+        dx = green_dx + self.nub_r * np.cos(beta + gamma)
+        dy = green_dy + self.nub_r * np.sin(beta + gamma)
+
+        return dx, dy, d_theta 
+
+        
+
+
+
+        
     
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):        
@@ -568,7 +620,7 @@ class VanderNode(Node):
         elif self.arm_state == ArmState.CHECK_GRIP:
             if self.SQ.isEmpty():
                 if self.purple_visible: # we see purple, so back up a bit and close hand
-                    self.goto_offset(OPEN_GRIP, ArmState.BACKUP_FORNUB, 0, 0, 0, -SEENUB_OFFSET)
+                    self.goto_offset(OPEN_GRIP, ArmState.BACKUP_FORNUB, 0, 0, 0, -SEENUB_OFFSET, None)
                 else:
                     self.arm_state = ArmState.SPIN_180
                     self.SQ.enqueue_joint(np.append(self.qg[0:4], wrap(self.qg[4]+np.pi, 2*np.pi)), ZERO_QDOT, OPEN_GRIP, ArmState.SPIN_180.duration)
@@ -582,18 +634,20 @@ class VanderNode(Node):
 
         elif self.arm_state == ArmState.BACKUP_FORNUB:
             if self.SQ.isEmpty():
-                self.goto_offset(OPEN_GRIP, ArmState.LOWER, 0, 0, -(CHECK_HEIGHT + 0.01), None)
+                self.goto_offset(OPEN_GRIP, ArmState.LOWER, 0, 0, -(CHECK_HEIGHT + 0.01), None, None)
 
 
         elif self.arm_state == ArmState.LOWER:
             if self.SQ.isEmpty():
                 self.arm_state = ArmState.GRAB
                 self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, CLOSED_GRIP, ArmState.GRAB.duration)
+                self.get_nub_location()
+                self.get_logger().info("Nub r %r, nub theta %r" % (self.nub_r, self.nub_theta))
 
         elif self.arm_state == ArmState.GRAB:
             if self.SQ.isEmpty():
                 # Move upwards
-                self.goto_offset(CLOSED_GRIP, ArmState.RAISE_PICKUP, 0, 0, HOVER_HEIGHT, None)
+                self.goto_offset(CLOSED_GRIP, ArmState.RAISE_PICKUP, 0, 0, HOVER_HEIGHT, None, None)
 
         elif self.arm_state == ArmState.RAISE_PICKUP:
             if self.SQ.isEmpty():
@@ -607,22 +661,30 @@ class VanderNode(Node):
         elif self.arm_state == ArmState.GOTO_PLACE:
             if self.SQ.isEmpty():
                 if self.skip_align:
-                    self.goto_offset(CLOSED_GRIP, ArmState.PLACE, 0, 0, -(HOVER_HEIGHT + 0.02), None)
+                    self.goto_offset(CLOSED_GRIP, ArmState.PLACE, 0, 0, -(HOVER_HEIGHT + 0.02), None, None)
                 else:
                     self.arm_state = ArmState.ALIGN
 
-                    align_goal = self.align_position
-                    alpha = self.qg[1] - self.qg[2] + self.qg[3]
-                    beta = self.qg[0] - self.qg[4]
+                    dx,dy,dtheta = self.align_calc()
+                    self.get_logger().info("dx %r, dy %r, dtheta %r" % (dx, dy, dtheta))
 
-                    align_goal = np.append(align_goal, [alpha, beta])
+                    self.goto_offset(CLOSED_GRIP, ArmState.ALIGN, dx, dy, 0, None, dtheta)
 
-                    # keep gripper closed
-                    self.SQ.enqueue_task(align_goal, ZERO_VEL, CLOSED_GRIP, ArmState.ALIGN.duration)
+                    # alpha = self.qg[1] - self.qg[2] + self.qg[3]
+                    # beta = d_theta
+
+                    # align_goal = np.copy(self.align_position)
+                    # alpha = self.qg[1] - self.qg[2] + self.qg[3]
+                    # beta = self.qg[0] - self.qg[4]
+
+                    # align_goal = np.append(align_goal, [alpha, beta])
+
+                    # # keep gripper closed
+                    # self.SQ.enqueue_task(align_goal, ZERO_VEL, CLOSED_GRIP, ArmState.ALIGN.duration)
 
         elif self.arm_state == ArmState.ALIGN:
             if self.SQ.isEmpty():
-                self.goto_offset(CLOSED_GRIP, ArmState.PLACE, 0, 0, -(HOVER_HEIGHT + 0.02), None)
+                self.goto_offset(CLOSED_GRIP, ArmState.PLACE, 0, 0, -(HOVER_HEIGHT + 0.02), None, None)
 
         elif self.arm_state == ArmState.PLACE:
             if self.SQ.isEmpty():
