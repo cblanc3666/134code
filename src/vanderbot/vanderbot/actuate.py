@@ -77,6 +77,7 @@ class ArmState(Enum):
                             # grip track correctly
     SPIN_180 = 3.0, []
     LOWER = 2.0, []
+    BACKUP_FORNUB = 2.0, [] 
     GRAB = 2.0, []  # grab onto track
     RAISE_PICKUP = 2.0, []
     GOTO_PLACE = 6.0, []
@@ -113,11 +114,12 @@ IDLE_POS = np.array([0, 1.4, 1.4, 0.0, 0.0])
 # Position lying straight out over table
 DOWN_POS = np.array([0, 0.0, 0.55, 0.0, 0.0])
 
-OPEN_GRIP = -0.2
+OPEN_GRIP = -0.3
 CLOSED_GRIP = -0.8
 IDLE_ALPHA = 0.0
 IDLE_BETA = 0.0
 
+SEENUB_OFFSET = 0.015 # move back along the track in order to see the nub when picking up
 TRACK_OFFSET = 0.17 # TODO - this is currently hard-coded for a curved track. Should depend on both track holding and track seen
 
 # Initial joint velocity (should be zero)
@@ -396,6 +398,8 @@ class VanderNode(Node):
 
     def recvpurplecirc(self, msg):
         self.purple_visible = True
+        x = msg.x
+        y = msg.y
 
     def gotopoint(self, x, y, z, beta=0):
         # Don't goto if not idle, or if we want arm to die
@@ -427,8 +431,35 @@ class VanderNode(Node):
 
         # Report.
         #self.get_logger().info("Going to point %r, %r, %r" % (x,y,z))
-
+    
+    '''
+    sets the next state
+    enqueues a task space spline to the xyz (or r theta z) coordinates at
+    the given offset from current position
+    if r is none, we have cartesian offset
+    if r is not none, then x and y offsets can be none
+    '''
+    def goto_offset(self, qfgrip, next_state, x_offset, y_offset, z_offset, r=None):
+        self.arm_state = next_state
         
+        pgoal, _, _, _ = self.chain.fkin(self.qg[0:5])
+        pgoal = pgoal.flatten()
+
+        alpha = self.qg[1] - self.qg[2] + self.qg[3]
+        beta = self.qg[0] - self.qg[4]
+
+        if (r != None):
+            pgoal[0] += r * np.cos(beta)
+            pgoal[1] += r * np.sin(beta)
+        else:
+            pgoal[0] += x_offset
+            pgoal[1] += y_offset
+            
+        pgoal[2] += z_offset
+
+        pgoal = np.append(pgoal, [alpha, beta])
+
+        self.SQ.enqueue_task(pgoal, ZERO_VEL, qfgrip, next_state.duration)
     
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):        
@@ -536,20 +567,8 @@ class VanderNode(Node):
                     
         elif self.arm_state == ArmState.CHECK_GRIP:
             if self.SQ.isEmpty():
-                if self.purple_visible: # close hand, we see purple
-                    self.arm_state = ArmState.LOWER
-                    
-                    # Move downwards during grab
-                    pgoal, _, _, _ = self.chain.fkin(self.qg[0:5])
-                    pgoal = pgoal.flatten()
-                    pgoal[2] -= (CHECK_HEIGHT + 0.01)
-
-                    alpha = self.qg[1] - self.qg[2] + self.qg[3]
-                    beta = self.qg[0] - self.qg[4]
-
-                    pgoal = np.append(pgoal, [alpha, beta])
-
-                    self.SQ.enqueue_task(pgoal, ZERO_VEL, OPEN_GRIP, ArmState.LOWER.duration)
+                if self.purple_visible: # we see purple, so back up a bit and close hand
+                    self.goto_offset(OPEN_GRIP, ArmState.BACKUP_FORNUB, 0, 0, 0, -SEENUB_OFFSET)
                 else:
                     self.arm_state = ArmState.SPIN_180
                     self.SQ.enqueue_joint(np.append(self.qg[0:4], wrap(self.qg[4]+np.pi, 2*np.pi)), ZERO_QDOT, OPEN_GRIP, ArmState.SPIN_180.duration)
@@ -561,6 +580,11 @@ class VanderNode(Node):
                 # stay put while checking grip
                 self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, OPEN_GRIP, ArmState.CHECK_GRIP.duration)
 
+        elif self.arm_state == ArmState.BACKUP_FORNUB:
+            if self.SQ.isEmpty():
+                self.goto_offset(OPEN_GRIP, ArmState.LOWER, 0, 0, -(CHECK_HEIGHT + 0.01), None)
+
+
         elif self.arm_state == ArmState.LOWER:
             if self.SQ.isEmpty():
                 self.arm_state = ArmState.GRAB
@@ -568,17 +592,8 @@ class VanderNode(Node):
 
         elif self.arm_state == ArmState.GRAB:
             if self.SQ.isEmpty():
-                self.arm_state = ArmState.RAISE_PICKUP
                 # Move upwards
-                pgoal, _, _, _ = self.chain.fkin(self.qg[0:5])
-                pgoal = pgoal.flatten()
-                pgoal[2] += HOVER_HEIGHT
-
-                alpha = self.qg[1] - self.qg[2] + self.qg[3]
-                beta = self.qg[0] - self.qg[4]
-
-                pgoal = np.append(pgoal, [alpha, beta])
-                self.SQ.enqueue_task(pgoal, ZERO_VEL, CLOSED_GRIP, ArmState.RAISE_PICKUP.duration)
+                self.goto_offset(CLOSED_GRIP, ArmState.RAISE_PICKUP, 0, 0, HOVER_HEIGHT, None)
 
         elif self.arm_state == ArmState.RAISE_PICKUP:
             if self.SQ.isEmpty():
@@ -592,18 +607,7 @@ class VanderNode(Node):
         elif self.arm_state == ArmState.GOTO_PLACE:
             if self.SQ.isEmpty():
                 if self.skip_align:
-                    self.arm_state = ArmState.PLACE
-
-                    down_goal, _, _, _ = self.chain.fkin(self.qg[0:5])
-                    down_goal = down_goal.flatten()
-                    down_goal[2] -= (HOVER_HEIGHT + 0.02)
-
-                    alpha = self.qg[1] - self.qg[2] + self.qg[3]
-                    beta = self.qg[0] - self.qg[4]
-
-                    down_goal = np.append(down_goal, [alpha, beta])
-
-                    self.SQ.enqueue_task(down_goal, ZERO_VEL, CLOSED_GRIP, ArmState.PLACE.duration)
+                    self.goto_offset(CLOSED_GRIP, ArmState.PLACE, 0, 0, -(HOVER_HEIGHT + 0.02), None)
                 else:
                     self.arm_state = ArmState.ALIGN
 
@@ -618,18 +622,7 @@ class VanderNode(Node):
 
         elif self.arm_state == ArmState.ALIGN:
             if self.SQ.isEmpty():
-                self.arm_state = ArmState.PLACE
-
-                down_goal, _, _, _ = self.chain.fkin(self.qg[0:5])
-                down_goal = down_goal.flatten()
-                down_goal[2] -= (HOVER_HEIGHT + 0.02)
-
-                alpha = self.qg[1] - self.qg[2] + self.qg[3]
-                beta = self.qg[0] - self.qg[4]
-
-                down_goal = np.append(down_goal, [alpha, beta])
-
-                self.SQ.enqueue_task(down_goal, ZERO_VEL, CLOSED_GRIP, ArmState.PLACE.duration)
+                self.goto_offset(CLOSED_GRIP, ArmState.PLACE, 0, 0, -(HOVER_HEIGHT + 0.02), None)
 
         elif self.arm_state == ArmState.PLACE:
             if self.SQ.isEmpty():
