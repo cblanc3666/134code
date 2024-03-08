@@ -357,7 +357,7 @@ class VanderNode(Node):
         return (centroid, direction_vec)
     
     def recvgreenrect(self, msg):
-        self.get_logger().info(f"Time_diff {self.get_clock().now().nanoseconds * 1e-9 - self.prev_time}")
+        # self.get_logger().info(f"Time_diff {self.get_clock().now().nanoseconds * 1e-9 - self.prev_time}")
         self.prev_time = self.get_clock().now().nanoseconds * 1e-9
         positions = []
         self.green_px_centr = [0.0, 0.0]
@@ -484,8 +484,8 @@ class VanderNode(Node):
         gamma = self.nub_theta / 2
 
         # offsets for the end effector
-        # d_theta = direction_vec - self.nub_theta # need to align to the bottom of the green contour
-        d_theta = self.nub_theta/2 # need to align to the bottom of the green contour
+        d_theta = -self.nub_theta # need to align to the bottom of the green contour
+        # d_theta = self.nub_theta/2 # need to align to the bottom of the green contour
         dx = green_dx - self.nub_r * np.cos(beta + gamma)
         dy = green_dy - self.nub_r * np.sin(beta + gamma)
 

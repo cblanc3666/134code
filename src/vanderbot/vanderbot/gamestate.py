@@ -215,7 +215,7 @@ class GameState(Node):
             self.track_filtering(self.orange_tracks, new_orange_tracks, self.orange_pos_time, self.orange_angle_time)
         test_pos = (round(self.orange_tracks[0].pose.position.x, 3), round(self.orange_tracks[0].pose.position.y, 3))
         test_angle = round(2 * np.arcsin(self.orange_tracks[0].pose.orientation.z) * 180 / np.pi, 3)
-        self.get_logger().info(f"{test_pos} @ {test_angle} deg.") 
+        #self.get_logger().info(f"{test_pos} @ {test_angle} deg.") 
         
     def recvtracks_pink(self, posemsg):
         #Initalizes self.pink_tracks when program first starts
@@ -315,12 +315,13 @@ class GameState(Node):
 
         #Intialize important tracks
         if len(self.important_tracks) == 0:
-            self.important_tracks = [self.blue_tracks[0], self.pink_tracks[0],
-                                     self.orange_tracks[0], self.blue_tracks[1]]
+            self.important_tracks = [self.blue_tracks[0], self.orange_tracks[0], 
+                                     self.blue_tracks[1], self.pink_tracks[0]]
         #Filter tracks in important tracks
         else:
-            new_important_tracks = [self.blue_tracks[0], self.pink_tracks[0],
-                                     self.orange_tracks[0], self.blue_tracks[1]]
+            new_important_tracks = [self.blue_tracks[0], self.orange_tracks[0], 
+                                     self.blue_tracks[1], self.pink_tracks[0]]
+                                     
             if len(self.placed_tracks) > 0:
                 for _ in range(len(self.placed_tracks)):
                     new_important_tracks.pop(0)

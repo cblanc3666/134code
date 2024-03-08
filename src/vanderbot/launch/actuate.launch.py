@@ -111,7 +111,7 @@ def generate_launch_description():
 
         # Run the robot AND watch the COMMANDS.
         node_robot_state_publisher_COMMAND,
-        node_rviz,
+        # node_rviz,
         node_hebi,
 
         node_actuate,
