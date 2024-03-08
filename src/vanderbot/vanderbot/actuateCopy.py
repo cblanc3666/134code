@@ -11,39 +11,54 @@ import rclpy
 import vanderbot.DetectHelpers as dh
 
 from enum import Enum
-from vanderbot.SegmentQueueDelayed      import SegmentQueue
+from vanderbot.SegmentQueueDelayed     import SegmentQueue
 
-from rclpy.node                         import Node
-from sensor_msgs.msg                    import JointState
-from geometry_msgs.msg                  import Point, Pose, Polygon, PoseArray
+from rclpy.node                        import Node
+from sensor_msgs.msg                   import JointState
+from geometry_msgs.msg                 import Point, Pose, Polygon, PoseArray
 
-from vanderbot.KinematicChain           import KinematicChain
-from vanderbot.TransformHelpers         import *
-from vanderbot.Segments                 import Goto5, QuinticSpline
-from std_msgs.msg                       import String, Float32
+from vanderbot.KinematicChain          import KinematicChain
+from vanderbot.TransformHelpers        import *
+from vanderbot.Segments                import Goto5, QuinticSpline
+from std_msgs.msg                      import String, Float32
 
 ''' Constant Definitions '''
-RATE = 100.0                                    # transmit rate, in Hertz
+RATE = 100.0            # transmit rate, in Hertz
 
-IDLE_POS = np.array([0., 1.4, 1.4, 0., 0.])     # Holding position over table
-DOWN_POS = np.array([0., 0., 0.55, 0., 0.])  # Position lying straight out over table
+# Holding position over the table
+IDLE_POS = np.array([0, 1.4, 1.4, 0.0, 0.0])    # Holding position over table
 
-OPEN_GRIP   = -0.3
+# Position lying straight out over table
+DOWN_POS = np.array([0, 0.0, 0.55, 0.0, 0.0])
+
+OPEN_GRIP = -0.3
 CLOSED_GRIP = -0.8
+IDLE_ALPHA = 0.0
+IDLE_BETA = 0.0
 
-SEENUB_OFFSET = 0.0 # 0.015 # move back along the track in order to see the nub when picking up
+SEENUB_OFFSET = 0.0#15 # move back along the track in order to see the nub when picking up
 TRACK_OFFSET = 0.17 # TODO - this is currently hard-coded for a curved track. Should depend on both track holding and track seen
 
-ZERO_QDOT = np.zeros(5)                         # Zero joint velocity
-ZERO_VEL  = np.zeros(5)                         # Zero task velocity
+# Initial joint velocity (should be zero)
+ZERO_QDOT = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
 
-TRACK_HEIGHT = 0.128                            # Track height to grab at
-TRACK_DEPTH  = 0.030                            # Thickness of track
+# zero velocity in x, y, z, alpha, beta directions
+ZERO_VEL = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
 
-# Gravity torque constants
-GRAV_ELBOW = -6.8                               # Nm
-GRAV_ELBOW_OFFSET = 0.01                        # Phase offset (radians)
+# Gripper initial Q and Qdot
+GRIP_ZERO_QDOT = 0.0
 
+# magnitude of the joint space divergence (||real - des||) that constitutes a 
+# collision
+Q_COLLISION_THRESHOLD = 0.07 # TODO
+QDOT_COLLISION_THRESHOLD = 0.5 # TODO
+
+# track height to grab at
+TRACK_DEPTH = 0.125
+
+# final gravity torque values (to attain as gravity is splined in)
+GRAV_ELBOW = -6.8 #-6.5
+GRAV_ELBOW_OFFSET = 0.01  # Radians
 GRAV_SHOULDER = 12.7 #12.1
 GRAV_SHOULDER_OFFSET = -0.11 # Raidans
 
@@ -62,10 +77,6 @@ TRACK_TURN_RADIUS = 0.1299 # radius of a circle
 
 HOVER_HEIGHT = 0.07
 CHECK_HEIGHT = 0.05
-
-# TODO: Magnitude of joint space error that constitutes a collision
-Q_COLLISION_THRESHOLD = 0.07
-QDOT_COLLISION_THRESHOLD = 0.5
 
 
 def wrap(angle, fullrange):
@@ -101,7 +112,7 @@ class ArmState(Enum):
     GRAB = 2.0, []  # grab onto track
     RAISE_PICKUP = 2.0, []
     GOTO_PLACE = 6.0, []
-    CHECK_ALIGN = 3.0, []
+    CHECK_ALIGN = 1.0, []
     ALIGN = 5.0, []
     PLACE = 6.0, []
     RELEASE = 2.0, [] # release grip on track
@@ -131,8 +142,6 @@ class TrackColor(Enum):
 #   Vanderbot Node Class
 #
 class VanderNode(Node):
-
-    prev_time = 0.0
     # joints are in form ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']
     
     position =  None # real joint positions (does not include gripper)
@@ -182,7 +191,7 @@ class VanderNode(Node):
 
         # Set the initial desired position to initial position so robot stays put
         self.qg = self.position0
-        self.qgdot = np.append(ZERO_QDOT, 0.0)
+        self.qgdot = np.append(ZERO_QDOT, GRIP_ZERO_QDOT)
         
         self.get_logger().info("Initial positions: %r" % self.position0)
 
@@ -263,7 +272,7 @@ class VanderNode(Node):
     def arm_pixel_to_position(self, x, y):
         (pcam, Rcam, _, _) = self.cam_chain.fkin(np.reshape(self.position, (-1, 1)))
         # self.get_logger().info(f"pcam x {pcam[0][0]} y {pcam[1][0]}")
-        z = (pcam[2][0] - TRACK_DEPTH)
+        z = pcam[2][0]
         lamb = -z / np.dot([0, 0, 1], Rcam @ np.array([[x], [y], [1]]))
 
         pobj = pcam + Rcam @ np.array([[x], [y], [1]]) * lamb
@@ -326,12 +335,12 @@ class VanderNode(Node):
         desired_pose = posemsg.poses[1]
         x = curr_pose.position.x
         y = curr_pose.position.y
-        z = TRACK_HEIGHT + CHECK_HEIGHT # hover for checking tracks
+        z = TRACK_DEPTH + CHECK_HEIGHT # hover for checking tracks
 
         self.track_type = curr_pose.orientation.x
         beta = 2*np.arcsin(desired_pose.orientation.z) - self.track_type * np.pi/6 # angle offset for track type
 
-        self.desired_pt = np.array([desired_pose.position.x, desired_pose.position.y, TRACK_HEIGHT, 0.0, beta])
+        self.desired_pt = np.array([desired_pose.position.x, desired_pose.position.y, TRACK_DEPTH, 0.0, beta])
         angle = 2 * np.arcsin(curr_pose.orientation.z)
         # self.get_logger().info("Found track at (%r, %r) with angle %r" % (x, y, angle))
         self.skip_align = (desired_pose.orientation.y == 1)
@@ -357,13 +366,8 @@ class VanderNode(Node):
         return (centroid, direction_vec)
     
     def recvgreenrect(self, msg):
-        self.get_logger().info(f"Time_diff {self.get_clock().now().nanoseconds * 1e-9 - self.prev_time}")
-        self.prev_time = self.get_clock().now().nanoseconds * 1e-9
         positions = []
-        self.green_px_centr = [0.0, 0.0]
         for corner in msg.points:
-            self.green_px_centr[0] += corner.x/4
-            self.green_px_centr[1] += corner.y/4
             positions.append(self.arm_pixel_to_position(corner.x, corner.y))
             
         
@@ -376,7 +380,7 @@ class VanderNode(Node):
         # align_point += direction_90 * TRACK_DISPLACEMENT_SIDE
         
         # self.align_position = align_point
-        # self.align_position[2][0] = TRACK_HEIGHT + HOVER_HEIGHT
+        # self.align_position[2][0] = TRACK_DEPTH + HOVER_HEIGHT
         # self.align_position = np.array(self.align_position.flatten())
 
     def recvpurplecirc(self, msg):
@@ -451,8 +455,6 @@ class VanderNode(Node):
 
         nub_u = np.copy(self.purple_u)
         nub_v = np.copy(self.purple_v)
-        
-        self.get_logger().info(f"Nub (u, v) {nub_u}, {nub_v}")
 
         (x_pnub, y_pnub, _) = self.arm_pixel_to_position(nub_u, nub_v).flatten()
 
@@ -484,8 +486,7 @@ class VanderNode(Node):
         gamma = self.nub_theta / 2
 
         # offsets for the end effector
-        # d_theta = direction_vec - self.nub_theta # need to align to the bottom of the green contour
-        d_theta = self.nub_theta/2 # need to align to the bottom of the green contour
+        d_theta = direction_vec - self.nub_theta # need to align to the bottom of the green contour
         dx = green_dx - self.nub_r * np.cos(beta + gamma)
         dy = green_dy - self.nub_r * np.sin(beta + gamma)
 
@@ -712,9 +713,6 @@ class VanderNode(Node):
         # self.get_logger().info("z tracking error %r" % track_error)
 
         # self.get_logger().info("z height %r" % self.chain.fkin(self.position)[0][2])
-
-        cam_diff = self.cam_chain.fkin(self.position)[0] - self.chain.fkin(self.position)[0]
-        # self.get_logger().info("cam pos diff %r" % cam_diff)
 
         joint_err = self.qg[1:3] - self.position[1:3]
         # self.get_logger().info("joint tracking error %r" % joint_err)

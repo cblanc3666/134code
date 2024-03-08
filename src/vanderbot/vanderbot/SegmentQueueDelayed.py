@@ -6,7 +6,8 @@ from vanderbot.TransformHelpers  import *
 
 # compensation for z error, which gets higher (grabbing too high) proportional
 # to radius from the origin of the space
-Z_COMPENSATION = 0.025
+# currently not using this
+Z_COMPENSATION = 0.0
 
 def crossmat(e):
     e = e.flatten()
@@ -18,15 +19,22 @@ def Rote(e, alpha):
     ex = crossmat(e)
     return np.eye(3) + np.sin(alpha) * ex + (1.0-np.cos(alpha)) * ex @ ex
 
+# quintic spline with 0 init and final velocity
 def spline(t, T, p0, pf, v0, vf):
+    a0 = 0.0
+    af = 0.0
+    
     # Compute the parameters.
     a = p0
     b = v0
-    c =   3*(pf-p0)/T**2 - vf/T    - 2*v0/T
-    d = - 2*(pf-p0)/T**3 + vf/T**2 +   v0/T**2
-    # Compute the current (p,v).
-    p = a + b * t +   c * t**2 +   d * t**3
-    v =     b     + 2*c * t    + 3*d * t**2
+    c = a0
+    d = -10*p0/T**3 - 6*v0/T**2 - 3*a0/T + 10*pf/T**3 - 4*vf/T**2 + 0.5*af/T
+    e = 15*p0/T**4 + 8*v0/T**3 + 3*a0/T**2 - 15*pf/T**4 + 7*vf/T**3 - 1*af/T**2
+    f = -6*p0/T**5 - 3*v0/T**4 - 1*a0/T**3 + 6*pf/T**5 - 3*vf/T**4 + 0.5*af/T**3
+
+    # Compute and return the position and velocity.
+    p = a + b * t + c * t**2 + d * t**3 + e * t**4 + f * t**5
+    v = b + 2*c * t + 3*d * t**2 + 4*e * t**3 + 5*f * t**4
     return (p,v)
 
 class JointSpline():
@@ -191,6 +199,163 @@ class TaskSpline():
         self.qgrip0 = qgrip
         self.qdotgrip0 = 0.0 # gripper always still at end of spline
 
+class PolarSpline():
+    '''
+    A task space spline. The inputs are pf, vf, Rf and T.
+    '''
+    def __init__(self, pf, vf, qgripf, T, lam, gamma, rate) -> None:
+        self.p0 = None 
+        self.pf = pf 
+        self.v0 = None 
+        self.vf = vf 
+        self.qgrip0 = None
+        self.qgripf = qgripf
+        self.qdotgrip0 = None
+        self.qdotgripf = 0.0 # gripper always still at end of spline
+        self.T = T 
+
+        self.space = 'Polar' 
+
+        # convergence bandwidth for ikin
+        self.lam = lam
+        self.gamma = gamma
+        self.rate = rate
+
+    def toPolar(self, cartesian):
+        '''
+        Converts from Cartesian to Polar space
+
+        Takes in   cartesian = 5 element 1D np array: [x, y, z, alpha, beta]
+        returns        polar = 5 element 1D np array: [r, theta, z, alpha, beta]
+        '''
+        cartesian = cartesian.flatten()
+        polar = np.copy(cartesian)
+        polar[0] = np.linalg.norm(cartesian[0:2])
+
+        polar[1] = np.arctan2(cartesian[1], cartesian[0])
+        # Wrap between -90 and 270 to avoid wrapping along table centerline
+        polar[1] = np.fmod(polar[1] + (5/2) * np.pi, 2 * np.pi) - np.pi/2
+
+        return np.reshape(polar, (-1, 1))
+    
+    def toPolarVel(self, cart_p, cart_v):
+        cart_p = cart_p.flatten()
+        cart_v = cart_v.flatten()
+
+        polar_v = np.copy(cart_v)
+
+        r = np.linalg.norm(cart_p[0:2])
+        polar_v[0] = np.dot(cart_p[0:2], cart_v[0:2]) / r
+
+        polar_v[1] = (cart_p[0] * cart_v[1] - cart_p[1] * cart_v[0]) / (cart_p[1] **2)
+
+        return np.reshape(polar_v, (-1, 1))
+
+    def toCartesian(self, polar):
+        '''
+        Converts from Polar to Cartesian space
+
+        Takes in       polar = 5 element 1D np array: [r, theta, z, alpha, beta]
+        returns        cartesian = 5 element 1D np array: [x, y, z, alpha, beta]
+        '''
+        polar = polar.flatten()
+        cartesian = np.copy(polar)
+        cartesian[0] = polar[0] * np.cos(polar[1])
+        cartesian[1] = polar[0] * np.sin(polar[1])
+
+        return np.reshape(cartesian, (-1, 1))
+
+    def toCartesianVel(self, polar_p, polar_v):
+        polar_p = polar_p.flatten()
+        polar_v = polar_v.flatten()
+
+        cartesian_v = np.copy(polar_v)
+        
+        cartesian_v[0] = polar_v[0] * np.cos(polar_p[1]) - polar_v[1] * polar_p[0] * np.sin(polar_p[1])
+        cartesian_v[1] = polar_v[0] * np.sin(polar_p[1]) + polar_v[1] * polar_p[0] * np.cos(polar_p[1])
+
+        return np.reshape(cartesian_v, (-1, 1))
+
+    def getSpace(self):
+        '''
+        Returns the space of the spline
+        '''
+        return self.space 
+    
+    def evaluate(self, fkin, q_prev, t):
+        '''
+        Compute the q, qdot of the given task spline using ikin.
+        
+        Inputs:
+        fkin - allows us to transform q_prev to task space
+        q_prev - Last commanded position. Not used.
+        t - time in seconds since the start of the current spline 
+
+        Outputs:
+        q, qdot - the position and velocity
+        '''
+        polar_pd, polar_vd = spline(t, self.T, self.toPolar(self.p0),    self.toPolar(self.pf), 
+                                    self.toPolarVel(self.p0, self.v0), self.toPolarVel(self.pf, self.vf))
+        
+        pd = self.toCartesian(polar_pd)
+        vd = self.toCartesianVel(polar_pd, polar_vd)
+
+        qgrip, qdotgrip = spline(t, self.T, self.qgrip0, self.qgripf, self.qdotgrip0, self.qdotgripf)
+
+        (p_prev, _, Jv, _) = fkin(np.reshape(q_prev, (-1, 1)))
+
+        # extract alpha and beta directly from joint space
+        alpha = q_prev[1]-q_prev[2]+q_prev[3] 
+        beta = q_prev[0]-q_prev[4] # base minus twist
+
+        p_prev = np.vstack((p_prev, alpha, beta))
+
+        vr   = vd + self.lam * ep(pd, p_prev)
+
+        # TODO hard-code these arrays in as constants somewhere since we use them to calculate alpha and beta in fkin
+        Jv_mod = np.vstack((Jv, [0, 1, -1, 1, 0], [1, 0, 0, 0, -1]))
+
+        Jinv = Jv_mod.T @ np.linalg.pinv(Jv_mod @ Jv_mod.T + self.gamma**2 * np.eye(5))
+        qdot = Jinv @ vr # ikin result
+
+        q = np.reshape(q_prev, (-1, 1)) + qdot / self.rate
+
+        q = q.flatten()
+        qdot = qdot.flatten()
+
+        qg = np.append(q, qgrip)
+        qgdot = np.append(qdot, qdotgrip)
+
+        return qg, qgdot
+
+    
+    def completed(self, t):
+        '''
+        Returns true if the spline is completed, false otherwise 
+        '''
+        return t > self.T
+
+    def calculateParameters(self, q, qdot, qgrip, fkin):
+        '''
+        Fills in all the parameters - p0 and v0.
+        '''
+        p0, _, Jv, _ = fkin(np.reshape(q, (-1, 1)))
+ 
+        v0 = Jv @ np.reshape(qdot, (-1, 1)) 
+
+        # extract alpha and beta directly from joint space
+        alpha = q[1]-q[2]+q[3] 
+        beta = q[0]-q[4] # base minus twist
+
+        alphadot = qdot[1]-qdot[2]+qdot[3]
+        betadot = qdot[0]-qdot[4]
+
+        self.p0 = np.vstack((p0, alpha, beta))
+        self.v0 = np.vstack((v0, alphadot, betadot))
+
+        self.qgrip0 = qgrip
+        self.qdotgrip0 = 0.0 # gripper always still at end of spline
+
 
 class SegmentQueue():
     '''
@@ -225,6 +390,11 @@ class SegmentQueue():
     def enqueue_task(self, pf, vf, qgrip_f, T):
         pf[2] -= Z_COMPENSATION * np.sqrt(pf[0]**2 + pf[1]**2)
         segment = TaskSpline(np.reshape(pf, (-1, 1)), np.reshape(vf, (-1, 1)), qgrip_f, T, self.lam, self.gamma, self.rate)
+        self.enqueue(segment)
+
+    def enqueue_polar(self, pf, vf, qgrip_f, T):
+        pf[2] -= Z_COMPENSATION * np.sqrt(pf[0]**2 + pf[1]**2)
+        segment = PolarSpline(np.reshape(pf, (-1, 1)), np.reshape(vf, (-1, 1)), qgrip_f, T, self.lam, self.gamma, self.rate)
         self.enqueue(segment)
 
     def enqueue_joint(self, qf, qdotf, qgrip_f, T):

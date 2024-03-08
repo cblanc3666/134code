@@ -45,7 +45,7 @@
                 {'pixel_format':        'yuyv2rgb'},
                 {'image_width':         320},
                 {'image_height':        240},
-                {'framerate':           15.0},
+                {'framerate':           30.0},
                 {'brightness':          200},
                 {'contrast':            40},
                 {'saturation':          60},

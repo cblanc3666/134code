@@ -393,18 +393,19 @@ class DetectorNode(Node):
             green_polygon_msg = Polygon()
             for point in green_rectCorners:
                 p = Point32()
-                point = 2*np.float32(point) # we multiply by two because we halved the camera resolution to improve framerate
+                point = np.float32(point) / self.RESOLUTION # we multiply by two because we halved the camera resolution to improve framerate
                 point = cv2.undistortPoints(point, self.arm_camK, self.arm_camD)
                 p.x = float(point[0][0][0])
                 p.y = float(point[0][0][1])
                 green_polygon_msg.points.append(p)
 
+            # self.get_logger().info(f"Green x, y {green_polygon_msg.points[0].x}, {green_polygon_msg.points[0].y}")
             self.green_rect.publish(green_polygon_msg)
 
         if purple_circCenter is not None:
             point_msg = Point()
             # Map the object in question.
-            uv_purple = np.float32(purple_circCenter)
+            uv_purple = np.float32(purple_circCenter) / self.RESOLUTION
             # self.get_logger().info(f"PURPLE UV 1{uv_purple}")
 
             # Undistort coords and report xbar, ybar, 1
