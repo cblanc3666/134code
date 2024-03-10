@@ -56,11 +56,11 @@ class GridNode:
     
 class HexagonalGrid:
 
-    X_MIN = -30
-    X_MAX = 30
+    X_MIN = -0.762
+    X_MAX = 0.762
     Y_MIN = 0
-    Y_MAX = 30
-    TRACK_LENGTH = 6
+    Y_MAX = 0.762
+    TRACK_LENGTH = 0.15
 
     def __init__(self, start, goal):
         """
@@ -315,7 +315,7 @@ class Planner:
     NO_THIRTY_DEG_TURNS = 1000  #Try to elimnate any 30-degree turns
     NEIGHBORS_WEIGHT = 0.01 #Don't go to nodes with fewer neighbors
     ANGLE_DIFF_WEIGHT = 5 
-    TRACK_COLOR = {"Straight" : "#00CED1", "Right" : "#FF1493", "Left" : "#FFA500"}
+    TRACK_COLOR = {"Straight" : "#00CED1", "Left" : "#FF1493", "Right" : "#FFA500"}
     STATES = {"Straight" : 0.0, "Right" : 1.0, "Left" : -1.0}
 
     def __init__(self, start, goal):
@@ -430,13 +430,13 @@ class Planner:
             if abs(angle_diff) <= 0.001:
                 track_types.append("Straight")
             elif abs(angle_diff + np.pi / 3) < 0.001:
-                track_types.append("Left")
+                track_types.append("Right")
             elif abs(angle_diff - np.pi / 3) < 0.001:
-                track_types.append("Right")
-            elif abs(angle_diff + 2 * np.pi / 3) < 0.001:
-                track_types.append("Right")
-            else:
                 track_types.append("Left")
+            elif abs(angle_diff + 2 * np.pi / 3) < 0.001:
+                track_types.append("Left")
+            else:
+                track_types.append("Right")
             midpts.append(self.final_nodes[i + 1].midpoint(self.final_nodes[i]))
             angles.append(angle)
 
@@ -461,7 +461,6 @@ class Planner:
         return posemsg
 
 
-
     def create_tracks(self):
         tracks = []
         for i in range(len(self.track_angles)):
@@ -469,6 +468,9 @@ class Planner:
                                           self.track_angles[i], self.track_types[i])
             new_track = Track(posemsg, self.track_types[i])
             tracks.append(new_track)
+
+        if self.grid.start_node.x > self.grid.goal_node.x:
+            return tracks[::-1]
         return tracks
 
 

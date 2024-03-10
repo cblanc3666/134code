@@ -32,7 +32,7 @@ OPEN_GRIP   = -0.3
 CLOSED_GRIP = -0.8
 
 SEENUB_OFFSET = 0.0 # 0.015 # move back along the track in order to see the nub when picking up
-TRACK_OFFSET = 0.17 # TODO - this is currently hard-coded for a curved track. Should depend on both track holding and track seen
+TRACK_OFFSET = 0.0 # TODO - this is currently hard-coded for a curved track. Should depend on both track holding and track seen
 
 ZERO_QDOT = np.zeros(5)                         # Zero joint velocity
 ZERO_VEL  = np.zeros(5)                         # Zero task velocity
@@ -123,8 +123,8 @@ class TrackColor(Enum):
         self.angle_offset = angle_offset
 
     BLUE = 0.0  # straight track has no angle offset from green rectangle
-    PINK = np.pi/6.0 # left turning track needs to be rotated by 30 degrees right
-    ORANGE = -np.pi/6.0
+    PINK = 0.0 #np.pi/6.0 # left turning track needs to be rotated by 30 degrees right
+    ORANGE = 0.0 #-np.pi/6.0
 
 
 #
@@ -329,12 +329,12 @@ class VanderNode(Node):
         z = TRACK_HEIGHT + CHECK_HEIGHT # hover for checking tracks
 
         self.track_type = curr_pose.orientation.x
-        beta = 2*np.arcsin(desired_pose.orientation.z) - self.track_type * np.pi/6 # angle offset for track type
+        beta = 2*np.arcsin(desired_pose.orientation.z) #- self.track_type * np.pi/6 # angle offset for track type
 
         self.desired_pt = np.array([desired_pose.position.x, desired_pose.position.y, TRACK_HEIGHT, 0.0, beta])
         angle = 2 * np.arcsin(curr_pose.orientation.z)
         # self.get_logger().info("Found track at (%r, %r) with angle %r" % (x, y, angle))
-        self.skip_align = (desired_pose.orientation.y == 1)
+        self.skip_align = (desired_pose.orientation.y == 1.0)
 
         if not self.skip_align:
             self.desired_pt[0] -= np.cos(beta) * TRACK_OFFSET
