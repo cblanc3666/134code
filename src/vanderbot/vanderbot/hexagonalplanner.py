@@ -319,6 +319,9 @@ class Planner:
     STATES = {"Straight" : 0.0, "Right" : 1.0, "Left" : -1.0}
 
     def __init__(self, start, goal):
+        self.num_blue_tracks = 0
+        self.num_pink_tracks = 0
+        self.num_orange_tracks = 0
         self.grid = HexagonalGrid(start, goal)
         self.final_nodes = self.astar()
         self.track_locations = None
@@ -468,6 +471,12 @@ class Planner:
                                           self.track_angles[i], self.track_types[i])
             new_track = Track(posemsg, self.track_types[i])
             tracks.append(new_track)
+            if self.track_types[i] == "Straight":
+                self.num_blue_tracks += 1
+            elif self.track_types[i] == "Right":
+                self.num_orange_tracks += 1
+            else:
+                self.num_pink_tracks += 1
 
         if self.grid.start_node.x > self.grid.goal_node.x:
             return tracks[::-1]

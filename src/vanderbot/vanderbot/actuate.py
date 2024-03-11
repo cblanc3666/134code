@@ -241,7 +241,9 @@ class VanderNode(Node):
         self.purple_circ = self.create_subscription(
             Point, '/PurpleCirc', self.recvpurplecirc, 10)
         
-        self.placed_track_pub = self.create_publisher(Pose, '/PlacedTrack', 10)
+        self.placed_track_pub = self.create_publisher(Pose, '/PlacedTrack', 10) #Lets gamestate know when track is placed
+        self.grabbing_track_pub = self.create_publisher(Pose, '/GrabbingTrack', 10) #Lets gamestate know when gripper is hovering over track
+        self.grabbed_track_pub = self.create_publisher(Pose, '/GrabbedTrack', 10) #Lets gamestate know when gripper grabbed the track
 
         # publisher to tell the arm to lie down so we can kill it safely
         self.liedown = self.create_subscription(
@@ -605,6 +607,12 @@ class VanderNode(Node):
                     
         elif self.arm_state == ArmState.CHECK_GRIP:
             if self.SQ.isEmpty():
+                #Tell gamestate that gripper is hovering over track
+                ptip, _, _, _  = self.chain.fkin(np.reshape(self.position, (-1, 1)))
+                ptip = ptip.flatten()
+                posemsg = dh.get_rect_pose_msg((ptip[0], ptip[1]), self.qg[0] - self.qg[4])
+                self.grabbing_track_pub.publish(posemsg)
+
                 if self.purple_visible: # we see purple, so back up a bit and close hand
                     self.goto_offset(OPEN_GRIP, ArmState.BACKUP_FORNUB, 0, 0, 0, -SEENUB_OFFSET, None)
                 else:
@@ -632,8 +640,15 @@ class VanderNode(Node):
 
         elif self.arm_state == ArmState.GRAB:
             if self.SQ.isEmpty():
+                #Tell gamestate that gripper grabbed the track
+                ptip, _, _, _  = self.chain.fkin(np.reshape(self.position, (-1, 1)))
+                ptip = ptip.flatten()
+                posemsg = dh.get_rect_pose_msg((ptip[0], ptip[1]), self.qg[0] - self.qg[4])
+                self.grabbed_track_pub.publish(posemsg)
                 # Move upwards
                 self.goto_offset(CLOSED_GRIP, ArmState.RAISE_PICKUP, 0, 0, HOVER_HEIGHT, None, None)
+
+ 
 
         elif self.arm_state == ArmState.RAISE_PICKUP:
             if self.SQ.isEmpty():
@@ -675,14 +690,14 @@ class VanderNode(Node):
         elif self.arm_state == ArmState.PLACE:
             if self.SQ.isEmpty():
                 self.arm_state = ArmState.RELEASE
-                ptip, _, _, _  = self.chain.fkin(np.reshape(self.position, (-1, 1)))
-                ptip = ptip.flatten()
-                posemsg = dh.get_rect_pose_msg((ptip[0], ptip[1]), self.qg[0] - self.qg[4])
-                self.placed_track_pub.publish(posemsg)
                 self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, OPEN_GRIP, ArmState.RELEASE.duration)
 
         elif self.arm_state == ArmState.RELEASE:
             if self.SQ.isEmpty(): # go home
+                ptip, _, _, _  = self.chain.fkin(np.reshape(self.position, (-1, 1)))
+                ptip = ptip.flatten()
+                posemsg = dh.get_rect_pose_msg((ptip[0], ptip[1]), self.qg[0] - self.qg[4])
+                self.placed_track_pub.publish(posemsg)
                 self.arm_state = ArmState.RETURN
                 self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, OPEN_GRIP, ArmState.RETURN.duration)
         else:
