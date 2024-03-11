@@ -101,6 +101,12 @@ class JointSpline():
         self.q0 = q.copy() 
         self.qdot0 = qdot.copy()
 
+        # handle case where we are holding position
+        if self.qf is None:
+            self.qf = self.q0
+            self.qdotf = self.qdot0
+            self.qgripf = self.qgrip0
+
 class TaskSpline():
     '''
     A task space spline. The inputs are pf, vf, Rf and T.
@@ -400,6 +406,10 @@ class SegmentQueue():
     def enqueue_joint(self, qf, qdotf, qgrip_f, T):
         segment = JointSpline(qf, qdotf, qgrip_f, T)
         self.enqueue(segment)
+
+    # Create a spline to hold position
+    def enqueue_hold(self, T):
+        self.enqueue_joint(None, None, None, T)
 
     def enqueue(self, segment):
         '''

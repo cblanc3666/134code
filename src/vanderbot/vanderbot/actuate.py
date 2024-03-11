@@ -31,7 +31,7 @@ DOWN_POS = np.array([0., 0., 0.55, 0., 0.])  # Position lying straight out over 
 OPEN_GRIP   = -0.3
 CLOSED_GRIP = -0.8
 
-SEENUB_OFFSET = 0.005 # increment of distance to move back along the track in order to see the nub when picking up
+SEENUB_OFFSET = 0.008 # increment of distance to move back along the track in order to see the nub when picking up
 TRACK_OFFSET = 0.0 # TODO - this is currently hard-coded for a curved track. Should depend on both track holding and track seen
 
 ZERO_QDOT = np.zeros(5)                         # Zero joint velocity
@@ -155,6 +155,7 @@ class VanderNode(Node):
     arm_killed = False # true when someone wants the arm to die
     track_type = None
     
+    check_attempts = 0 # counts number of times we've looked for a purple nub
 
     align_position = None
 
@@ -516,7 +517,7 @@ class VanderNode(Node):
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):        
         # self.get_logger().info("Desired point %r" % self.desired_pt)
-        self.get_logger().info("Current state %r" % self.arm_state) # TODO turn back on; watermelon
+        # self.get_logger().info("Current state %r" % self.arm_state) # TODO turn back on; watermelon
         # Time since start
         time = self.get_clock().now().nanoseconds * 1e-9
 
@@ -617,7 +618,7 @@ class VanderNode(Node):
                 self.arm_state = ArmState.CHECK_GRIP
                 self.purple_visible = False
                 # stay put while checking grip
-                self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, OPEN_GRIP, ArmState.CHECK_GRIP.duration)
+                self.SQ.enqueue_hold(ArmState.CHECK_GRIP.duration)
                     
         elif self.arm_state == ArmState.CHECK_GRIP:
             if self.SQ.isEmpty():
@@ -629,16 +630,38 @@ class VanderNode(Node):
 
                 if self.purple_visible: # we see purple, so lower
                     self.goto_offset(OPEN_GRIP, ArmState.LOWER, 0, 0, -(CHECK_HEIGHT), None, None)
+                    self.check_attempts = 0
                 else:
-                    self.arm_state = ArmState.SPIN_180
-                    self.SQ.enqueue_joint(np.append(self.qg[0:4], wrap(self.qg[4]+np.pi, 2*np.pi)), ZERO_QDOT, OPEN_GRIP, ArmState.SPIN_180.duration)
+                    # self.get_logger().info(f"check attempts {self.check_attempts}")
+                    self.check_attempts = self.check_attempts+1
+                    if self.check_attempts == 1:
+                        self.arm_state = ArmState.SPIN_180
+                        self.SQ.enqueue_joint(np.append(self.qg[0:4], wrap(self.qg[4]+np.pi, 2*np.pi)), ZERO_QDOT, OPEN_GRIP, ArmState.SPIN_180.duration)
+                    elif self.check_attempts == 2:
+                        # move back
+                        self.goto_offset(OPEN_GRIP, ArmState.CHECK_GRIP, 0, 0, 0, -3*SEENUB_OFFSET, None)
+                        # then check to see if purple dot visible
+                        self.SQ.enqueue_hold(ArmState.CHECK_GRIP.duration)
+                    elif self.check_attempts == 3:
+                        # spin around and check if purple dot visible
+                        self.arm_state = ArmState.SPIN_180
+                        self.SQ.enqueue_joint(np.append(self.qg[0:4], wrap(self.qg[4]+np.pi, 2*np.pi)), ZERO_QDOT, OPEN_GRIP, ArmState.SPIN_180.duration)
+                    elif self.check_attempts == 4:
+                        # last effort. Move back and check if purple dot visible
+                        self.goto_offset(OPEN_GRIP, ArmState.CHECK_GRIP, 0, 0, 0, -6*SEENUB_OFFSET, None)
+                        self.SQ.enqueue_hold(ArmState.CHECK_GRIP.duration)
+                    else:
+                        # give up & go home
+                        self.check_attempts = 0
+                        self.arm_state = ArmState.RETURN
+                        self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, OPEN_GRIP, ArmState.RETURN.duration)
 
         elif self.arm_state == ArmState.SPIN_180:
             if self.SQ.isEmpty():
                 self.arm_state = ArmState.CHECK_GRIP
                 self.purple_visible = False
                 # stay put while checking grip
-                self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, OPEN_GRIP, ArmState.CHECK_GRIP.duration)
+                self.SQ.enqueue_hold(ArmState.CHECK_GRIP.duration)
 
         
         elif self.arm_state == ArmState.LOWER:
@@ -646,7 +669,7 @@ class VanderNode(Node):
                 self.purple_visible = False
                 self.arm_state = ArmState.CHECK_FORNUB
                 # stay put while checking for nub
-                self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, OPEN_GRIP, ArmState.CHECK_FORNUB.duration)
+                self.SQ.enqueue_hold(ArmState.CHECK_FORNUB.duration)
                 
 
         elif self.arm_state == ArmState.CHECK_FORNUB:
@@ -699,8 +722,8 @@ class VanderNode(Node):
                     self.arm_state = ArmState.ALIGN
 
                     dx, dy, dtheta = self.align_calc()
-                    dtheta = 0.0 # TODO uh i guess we don't need this now
                     self.get_logger().info("dx %r, dy %r, dtheta %r" % (dx, dy, dtheta))
+                    dtheta = 0.0 # TODO uh i guess we don't need this now
 
                     self.goto_offset(CLOSED_GRIP, ArmState.ALIGN, dx, dy, 0, None, dtheta)
 
