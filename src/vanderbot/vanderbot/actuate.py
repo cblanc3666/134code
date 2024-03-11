@@ -31,7 +31,7 @@ DOWN_POS = np.array([0., 0., 0.55, 0., 0.])  # Position lying straight out over 
 OPEN_GRIP   = -0.3
 CLOSED_GRIP = -0.8
 
-SEENUB_OFFSET = 0.0 # 0.015 # move back along the track in order to see the nub when picking up
+SEENUB_OFFSET = 0.005 # increment of distance to move back along the track in order to see the nub when picking up
 TRACK_OFFSET = 0.0 # TODO - this is currently hard-coded for a curved track. Should depend on both track holding and track seen
 
 ZERO_QDOT = np.zeros(5)                         # Zero joint velocity
@@ -60,8 +60,9 @@ TRACK_DISPLACEMENT_SIDE = 0.0 #0.025
 
 TRACK_TURN_RADIUS = 0.1299 # radius of a circle
 
-HOVER_HEIGHT = 0.07
-CHECK_HEIGHT = 0.05
+HOVER_HEIGHT = 0.07 # height above table to hover when lifting/lowering
+FIRST_ALIGN_HEIGHT = 0.03 # height of arm when it does first alignment check
+CHECK_HEIGHT = 0.07 # height above table to check for purple nubs
 
 # TODO: Magnitude of joint space error that constitutes a collision
 Q_COLLISION_THRESHOLD = 0.07
@@ -94,17 +95,19 @@ class ArmState(Enum):
     GOTO_PICKUP  = 5.0, []  # moving to a commanded point, either from IDLE_POS or a 
                     # previously commanded point
     CHECK_GRIP = 1.0, []    # state allowing detector to check if we are about to
-                            # grip track correctly
-    SPIN_180 = 3.0, []
-    LOWER = 6.0, []
-    BACKUP_FORNUB = 2.0, [] 
+                            # grip track correctly or in the wrong orientation
+    SPIN_180 = 3.0, []      # spins us around to check if the correct way to grab track is the other way
+    LOWER = 6.0, []         # lower down to grab track
+    CHECK_FORNUB = 2.0, []  # check if the nub is still visible after lowering
+    BACKUP_FORNUB = 0.5, [] # back up to make sure purple nub is in place
     GRAB = 2.0, []  # grab onto track
-    RAISE_PICKUP = 2.0, []
-    GOTO_PLACE = 6.0, []
-    CHECK_ALIGN = 3.0, []
-    ALIGN = 5.0, []
-    PLACE = 6.0, []
+    RAISE_PICKUP = 2.0, [] # lift the track before going to place it
+    GOTO_PLACE = 6.0, [] # go to place the track
+    CHECK_ALIGN = 3.0, [] # hold still and check how to align track
+    ALIGN = 5.0, [] # align the track
+    PLACE = 6.0, [] # lower the track down
     RELEASE = 2.0, [] # release grip on track
+    RAISE_RELEASE = 2.0, [] # raise clear of track before moving away
     LIE_DOWN = 1.0, [] # tells arm to go to lying down position, no matter what it is doing
 
 
@@ -471,7 +474,7 @@ class VanderNode(Node):
         cnt_x = centroid[0][0]
         cnt_y = centroid[1][0]
         direction_vec = np.linalg.norm(np.copy(self.green_orientation))
-        self.get_logger().info(f"Direction {direction_vec} x{centroid[0][0]} y {centroid[1][0]}")
+        self.get_logger().info(f"Direction {direction_vec} cnt_x {centroid[0][0]} cnt_y {centroid[1][0]}")
         self.get_logger().info(f"Nub theta {self.nub_theta}")
 
         ptip, _, _, _  = self.chain.fkin(np.reshape(self.position, (-1, 1)))
@@ -479,17 +482,28 @@ class VanderNode(Node):
         (x_ptip, y_ptip, _) = ptip
 
         # get offset of green contour from end effector
+        self.get_logger().info(f"x_ptip {x_ptip}")
+        self.get_logger().info(f"y_ptip {y_ptip}")
         green_dx = cnt_x - x_ptip
         green_dy = cnt_y - y_ptip
 
         beta = self.qg[0] - self.qg[4]
         gamma = self.nub_theta / 2
+        
 
         # offsets for the end effector
         d_theta = -self.nub_theta # need to align to the bottom of the green contour
         # d_theta = self.nub_theta/2 # need to align to the bottom of the green contour
+        self.get_logger().info(f"Beta {beta}")
+        self.get_logger().info(f"Gamma {gamma}")
+        self.get_logger().info(f"Nub r dx {self.nub_r * np.cos(beta + gamma)}")
+        self.get_logger().info(f"Nub r dy {self.nub_r * np.sin(beta + gamma)}")
         dx = green_dx - self.nub_r * np.cos(beta + gamma)
-        dy = green_dy - self.nub_r * np.sin(beta + gamma)
+        if gamma == 0.0: # only the case for a straight track, for some reason? (TODO please someone explain this to me)
+            dy = green_dy - self.nub_r * np.sin(beta + gamma)
+        else:
+            dy = green_dy + self.nub_r * np.sin(beta + gamma)
+        # OK FOR SOME REASON nub r dy is the wrong sign for curved tracks???? WONDERFUL!! lol
 
         return dx, dy, d_theta 
 
@@ -502,7 +516,7 @@ class VanderNode(Node):
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):        
         # self.get_logger().info("Desired point %r" % self.desired_pt)
-        # self.get_logger().info("Current state %r" % self.arm_state) # TODO turn back on; watermelon
+        self.get_logger().info("Current state %r" % self.arm_state) # TODO turn back on; watermelon
         # Time since start
         time = self.get_clock().now().nanoseconds * 1e-9
 
@@ -613,8 +627,8 @@ class VanderNode(Node):
                 posemsg = dh.get_rect_pose_msg((ptip[0], ptip[1]), self.qg[0] - self.qg[4])
                 self.grabbing_track_pub.publish(posemsg)
 
-                if self.purple_visible: # we see purple, so back up a bit and close hand
-                    self.goto_offset(OPEN_GRIP, ArmState.BACKUP_FORNUB, 0, 0, 0, -SEENUB_OFFSET, None)
+                if self.purple_visible: # we see purple, so lower
+                    self.goto_offset(OPEN_GRIP, ArmState.LOWER, 0, 0, -(CHECK_HEIGHT), None, None)
                 else:
                     self.arm_state = ArmState.SPIN_180
                     self.SQ.enqueue_joint(np.append(self.qg[0:4], wrap(self.qg[4]+np.pi, 2*np.pi)), ZERO_QDOT, OPEN_GRIP, ArmState.SPIN_180.duration)
@@ -626,20 +640,38 @@ class VanderNode(Node):
                 # stay put while checking grip
                 self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, OPEN_GRIP, ArmState.CHECK_GRIP.duration)
 
-        elif self.arm_state == ArmState.BACKUP_FORNUB:
-            if self.SQ.isEmpty():
-                self.goto_offset(OPEN_GRIP, ArmState.LOWER, 0, 0, -(CHECK_HEIGHT), None, None)
-
-
+        
         elif self.arm_state == ArmState.LOWER:
             if self.SQ.isEmpty():
-                self.arm_state = ArmState.GRAB
-                self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, CLOSED_GRIP, ArmState.GRAB.duration)
-                self.get_nub_location()
-                self.get_logger().info("Nub r %r, nub theta %r" % (self.nub_r, self.nub_theta))
+                self.purple_visible = False
+                self.arm_state = ArmState.CHECK_FORNUB
+                # stay put while checking for nub
+                self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, OPEN_GRIP, ArmState.CHECK_FORNUB.duration)
+                
+
+        elif self.arm_state == ArmState.CHECK_FORNUB:
+            if self.SQ.isEmpty():
+                if not self.purple_visible: # back up a bit so we can see purple!
+                    self.goto_offset(OPEN_GRIP, ArmState.BACKUP_FORNUB, 0, 0, 0, -SEENUB_OFFSET, None)
+                else:
+                    self.arm_state = ArmState.GRAB
+                    self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, CLOSED_GRIP, ArmState.GRAB.duration)
+
+        elif self.arm_state == ArmState.BACKUP_FORNUB:
+            if self.SQ.isEmpty():
+                if self.purple_visible: # if we see, grab
+                    self.arm_state = ArmState.GRAB
+                    self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, CLOSED_GRIP, ArmState.GRAB.duration)
+                else:
+                    # keep backing up
+                    self.goto_offset(OPEN_GRIP, ArmState.BACKUP_FORNUB, 0, 0, 0, -SEENUB_OFFSET, None) # back it up again!
 
         elif self.arm_state == ArmState.GRAB:
             if self.SQ.isEmpty():
+                # don't get nub location until we've grabbed (since grabbing can change the position of the nub)
+                self.get_nub_location()
+                self.get_logger().info("Nub r %r, nub theta %r" % (self.nub_r, self.nub_theta))
+                
                 #Tell gamestate that gripper grabbed the track
                 ptip, _, _, _  = self.chain.fkin(np.reshape(self.position, (-1, 1)))
                 ptip = ptip.flatten()
@@ -656,17 +688,18 @@ class VanderNode(Node):
                 
                 goal_pt = np.copy(self.desired_pt)
 
-                goal_pt[2] += HOVER_HEIGHT
+                goal_pt[2] += FIRST_ALIGN_HEIGHT
                 self.SQ.enqueue_polar(goal_pt, ZERO_VEL, CLOSED_GRIP, ArmState.GOTO_PLACE.duration)
 
         elif self.arm_state == ArmState.GOTO_PLACE:
             if self.SQ.isEmpty():
                 if self.skip_align:
-                    self.goto_offset(CLOSED_GRIP, ArmState.PLACE, 0, 0, -(HOVER_HEIGHT), None, None)
+                    self.goto_offset(CLOSED_GRIP, ArmState.PLACE, 0, 0, -(FIRST_ALIGN_HEIGHT), None, None)
                 else:
                     self.arm_state = ArmState.ALIGN
 
                     dx, dy, dtheta = self.align_calc()
+                    dtheta = 0.0 # TODO uh i guess we don't need this now
                     self.get_logger().info("dx %r, dy %r, dtheta %r" % (dx, dy, dtheta))
 
                     self.goto_offset(CLOSED_GRIP, ArmState.ALIGN, dx, dy, 0, None, dtheta)
@@ -685,7 +718,8 @@ class VanderNode(Node):
 
         elif self.arm_state == ArmState.ALIGN:
             if self.SQ.isEmpty():
-                self.goto_offset(CLOSED_GRIP, ArmState.PLACE, 0, 0, -(HOVER_HEIGHT), None, None)
+                # descend 
+                self.goto_offset(CLOSED_GRIP, ArmState.PLACE, 0, 0, -(FIRST_ALIGN_HEIGHT), None, None)
 
         elif self.arm_state == ArmState.PLACE:
             if self.SQ.isEmpty():
@@ -693,13 +727,19 @@ class VanderNode(Node):
                 self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, OPEN_GRIP, ArmState.RELEASE.duration)
 
         elif self.arm_state == ArmState.RELEASE:
-            if self.SQ.isEmpty(): # go home
+            if self.SQ.isEmpty(): # report and then go up
                 ptip, _, _, _  = self.chain.fkin(np.reshape(self.position, (-1, 1)))
                 ptip = ptip.flatten()
                 posemsg = dh.get_rect_pose_msg((ptip[0], ptip[1]), self.qg[0] - self.qg[4])
                 self.placed_track_pub.publish(posemsg)
+                self.goto_offset(OPEN_GRIP, ArmState.RAISE_RELEASE, 0, 0, HOVER_HEIGHT, None, None)
+                
+
+        elif self.arm_state == ArmState.RAISE_RELEASE:
+            if self.SQ.isEmpty(): # go home
                 self.arm_state = ArmState.RETURN
                 self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, OPEN_GRIP, ArmState.RETURN.duration)
+
         else:
             self.get_logger().info("Arm in unknown state")
             self.arm_state = ArmState.RETURN
