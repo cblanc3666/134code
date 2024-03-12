@@ -23,6 +23,8 @@ class GameState(Node):
     STATES = {"Straight" : 0.0, "Right" : 1.0, "Left" : -1.0}
     START_LOC = (0.6, 0.4)
     GOAL_LOC = (-0.3, 0.3)
+    # START_LOC = (0.3, 0.5)
+    # GOAL_LOC = (0.1, 0.1)
     DIST_THRESH = 1
     def __init__(self, name):
         # Initialize the node, naming it as specified

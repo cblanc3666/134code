@@ -503,17 +503,12 @@ class VanderNode(Node):
 
         # offsets for the end effector
         d_theta = -self.nub_theta # need to align to the bottom of the green contour
-        # d_theta = self.nub_theta/2 # need to align to the bottom of the green contour
         self.get_logger().info(f"Beta {beta}")
         self.get_logger().info(f"Gamma {gamma}")
         self.get_logger().info(f"Nub r dx {self.nub_r * np.cos(beta + gamma)}")
         self.get_logger().info(f"Nub r dy {self.nub_r * np.sin(beta + gamma)}")
-        dx = green_dx - self.nub_r * np.cos(beta + gamma)
-        if gamma == 0.0: # only the case for a straight track, for some reason? (TODO please someone explain this to me)
-            dy = green_dy - self.nub_r * np.sin(beta + gamma)
-        else:
-            dy = green_dy + self.nub_r * np.sin(beta + gamma)
-        # OK FOR SOME REASON nub r dy is the wrong sign for curved tracks???? WONDERFUL!! lol
+        dx = green_dx - self.nub_r * np.cos(beta - gamma)
+        dy = green_dy - self.nub_r * np.sin(beta - gamma)
 
         return dx, dy, d_theta 
 
