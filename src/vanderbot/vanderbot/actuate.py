@@ -22,59 +22,69 @@ from vanderbot.TransformHelpers         import *
 from vanderbot.Segments                 import Goto5, QuinticSpline
 from std_msgs.msg                       import String, Float32
 
-''' Constant Definitions '''
-RATE = 100.0                                    # transmit rate, in Hertz
 
-IDLE_POS = np.array([0., 1.4, 1.4, 0., 0.])     # Holding position over table
-DOWN_POS = np.array([0., 0., 0.55, 0., 0.])  # Position lying straight out over table
+
+''' -------------------- Constant Definitions --------------------- '''
+
+RATE = 100.0                            # transmit rate, in Hertz
+
+
+''' Joint Positions '''
+IDLE_POS = np.array([0.,1.4,1.4,0.,0.]) # Holding position over table
+DOWN_POS = np.array([0.,0.,0.55,0.,0.]) # Position lying straight out over table
 
 OPEN_GRIP   = -0.3
 CLOSED_GRIP = -0.8
 
-SEENUB_OFFSET = 0.008 # increment of distance to move back along the track in order to see the nub when picking up
-TRACK_OFFSET = 0.0 # TODO - this is currently hard-coded for a curved track. Should depend on both track holding and track seen
+ZERO_QDOT = np.zeros(5)                 # Zero joint velocity
+ZERO_VEL  = np.zeros(5)                 # Zero task velocity
 
-ZERO_QDOT = np.zeros(5)                         # Zero joint velocity
-ZERO_VEL  = np.zeros(5)                         # Zero task velocity
+ALPHA_J = np.array([0.,1.,1.,1.,0.])    # Coeffs of motor angles for gripper world pitch
+BETA_J  = np.array([1.,0.,0.,0.,1.])    # Coeffs of motor angles for gripper world yaw
 
-TRACK_HEIGHT = 0.128                            # Track height to grab at
-TRACK_DEPTH  = 0.030                            # Thickness of track
 
-# Gravity torque constants
-GRAV_ELBOW = -6.8                               # Nm
-GRAV_ELBOW_OFFSET = 0.01                        # Phase offset (radians)
+''' Positions and Offsets '''
+TRACK_DEPTH  = 0.012                    # Thickness of the track
+TRACK_TURN_RADIUS = 0.1299              # Radius of the centerline of the curved tracks
 
-GRAV_SHOULDER = 12.7 #12.1
-GRAV_SHOULDER_OFFSET = -0.11 # Raidans
+TRACK_HEIGHT = 0.128                    # Gripper height to grab the track at
+CHECK_HEIGHT = 0.05                     # Gripper height offset when looking for the nub
+FIRST_ALIGN_HEIGHT = 0.03               # Arm height when it does first alignment check
+HOVER_HEIGHT = 0.07                     # Gripper height offset when placing down the track
 
-# gripper closed hand torque value
-TAU_GRIP = -6.0
+SEENUB_OFFSET = 0.0     # 0.015         # Backup offset when checking nub to ensure it is seen
+TRACK_OFFSET = 0.0                      # Distance offset when given the location of a placed track
+                                        # to connect to
 
-# arrays indicating which angles (out of base, shoulder, elbow, wrist, twist)
-# contribute to alpha and beta, respectively
-ALPHA_J = np.array([0, 1, 1, 1, 0])
-BETA_J = np.array([1, 0, 0, 0, 1])
 
-TRACK_DISPLACEMENT_FORWARDS = -0.08
-TRACK_DISPLACEMENT_SIDE = 0.0 #0.025
+''' Gravity and Torque '''
+GRAV_ELBOW = -6.8                       # Nm
+GRAV_ELBOW_OFFSET = 0.01                # Phase offset (radians)
 
-TRACK_TURN_RADIUS = 0.1299 # radius of a circle
+GRAV_SHOULDER = 12.7                    # Nm
+GRAV_SHOULDER_OFFSET = -0.11            # Phase offset (radians)
 
-HOVER_HEIGHT = 0.07 # height above table to hover when lifting/lowering
-FIRST_ALIGN_HEIGHT = 0.03 # height of arm when it does first alignment check
-CHECK_HEIGHT = 0.07 # height above table to check for purple nubs
+TAU_GRIP = -6.0                         # Closed gripper torque
 
-# TODO: Magnitude of joint space error that constitutes a collision
-Q_COLLISION_THRESHOLD = 0.07
-QDOT_COLLISION_THRESHOLD = 0.5
+
+''' TODO Collisions '''
+Q_COLLISION_THRESHOLD = 0.07            # Magnitude diff of desired and actual joint positions
+QDOT_COLLISION_THRESHOLD = 0.5          # Magnitude diff of desired and actual joint velocities
+
+
 
 
 def wrap(angle, fullrange):
+    ''' Takes in an angle and restricts it to +- fullrange/2 '''
     return angle - fullrange * round(angle/fullrange)
 
-#   States the arm can be in
-#   Duration concerns length of spline in each state
+
 class ArmState(Enum):
+    '''
+    Represents the states the arm can be in, as well as their
+    associated spline durations.
+    '''
+
     def __new__(cls, *args, **kwds):
         value = len(cls.__members__) + 1
         obj = object.__new__(cls)
@@ -85,37 +95,35 @@ class ArmState(Enum):
         self.duration = duration
         self.segments = segments
 
-    START = 6.0, []  # initial state
-    RETURN = 4.0, [] # moving back to IDLE_POS, either because no other point has 
-                    # been commanded or because the next point is too far from
-                    # the previous point
-                    # Returning ALWAYS uses a joint space spline
-    IDLE = None, []  # nothing commanded, arm is at IDLE_POS
-    
-    GOTO_PICKUP  = 5.0, []  # moving to a commanded point, either from IDLE_POS or a 
-                    # previously commanded point
-    CHECK_GRIP = 1.0, []    # state allowing detector to check if we are about to
-                            # grip track correctly or in the wrong orientation
-    SPIN_180 = 3.0, []      # spins us around to check if the correct way to grab track is the other way
-    LOWER = 6.0, []         # lower down to grab track
-    CHECK_FORNUB = 2.0, []  # check if the nub is still visible after lowering
-    BACKUP_FORNUB = 0.5, [] # back up to make sure purple nub is in place
-    GRAB = 2.0, []  # grab onto track
-    RAISE_PICKUP = 2.0, [] # lift the track before going to place it
-    GOTO_PLACE = 6.0, [] # go to place the track
-    CHECK_ALIGN = 3.0, [] # hold still and check how to align track
-    ALIGN = 5.0, [] # align the track
-    PLACE = 6.0, [] # lower the track down
-    RELEASE = 2.0, [] # release grip on track
+    START = 6.0, []                     # Initial state
+    RETURN = 4.0, []                    # Moving back to IDLE_POS; always uses a joint spline
+    IDLE = None, []                     # Nothing commanded; arm is at IDLE_POS
+    GOTO_PICKUP  = 5.0, []              # Moving to a commanded point, either from IDLE_POS or a
+                                        # previously commanded point
+    CHECK_GRIP = 1.0, []                # Arm remains above track to detect the purple nub
+    CHECK_FORNUB = 2.0, []              # Check if the nub is still visible after lowering
+    BACKUP_FORNUB = 0.5, []             # Backup arm to bring purple nub more into view
+    SPIN_180 = 3.0, []                  # Twist motor spins to check other track side for nub
+    LOWER = 6.0, []                     # Lowering arm to pickup track
+    GRAB = 2.0, []                      # Grab track
+    RAISE_PICKUP = 2.0, []              # Raise track after pickup
+    GOTO_PLACE = 6.0, []                # Moves to a desired placement location
+    CHECK_ALIGN = 3.0, []               # Arm remains above track to find purple and green ends
+    ALIGN = 5.0, []                     # Aligns the purple nub with the green track end
+    PLACE = 6.0, []                     # Moves arm downwards to connect track
+    RELEASE = 2.0, []                   # Opens gripper to release track
     RAISE_RELEASE = 2.0, [] # raise clear of track before moving away
-    LIE_DOWN = 1.0, [] # tells arm to go to lying down position, no matter what it is doing
+    LIE_DOWN = 1.0, []                  # Tells arm to go to DOWN_POS regardless of current action
 
 
-
-#   Track colors
-#   Stores an angle offset used to align track with arm camera
-#   Angle offset is angle of track relative to green rectangle pose
 class TrackColor(Enum):
+    '''
+    Represents the three types of tracks
+    Stores their angle offsets to be used with alignment
+    Angle offset is defined as the difference between the headings at
+      at the end of the track and the center of the track
+    '''
+
     def __new__(cls, *args, **kwds):
         value = len(cls.__members__) + 1
         obj = object.__new__(cls)
@@ -125,31 +133,31 @@ class TrackColor(Enum):
     def __init__(self, angle_offset):
         self.angle_offset = angle_offset
 
-    BLUE = 0.0  # straight track has no angle offset from green rectangle
-    PINK = 0.0 #np.pi/6.0 # left turning track needs to be rotated by 30 degrees right
-    ORANGE = 0.0 #-np.pi/6.0
+
+    BLUE = 0.0                          # Straight track
+    PINK = 0.0  #np.pi/6.0              # Left turn track needs to be rotated by 30 degrees right
+    ORANGE = 0.0 #-np.pi/6.0            # Right turn
 
 
-#
-#   Vanderbot Node Class
-#
+
+
+
 class VanderNode(Node):
-
-    prev_time = 0.0
-    # joints are in form ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper']
+    ''' Vanderbot actuate node class '''
+    ''' Joints are ordered ['base', 'shoulder', 'elbow', 'wrist', 'twist', 'gripper'] '''
     
-    position =  None # real joint positions (does not include gripper)
-    qdot =      None # real joint velocities (does not include gripper)
-    effort =    None # real joint efforts (does not include gripper)
+    start_time = 0                      # Time of node initialization
 
-    grip_position = None # real gripper position
-    grip_qdot = None # real gripper joint velocity
-    grip_effort = None # real gripper effort
+    position =  None                    # Real joint positions  (does not include gripper)
+    qdot =      None                    # Real joint velocities (does not include gripper)
+    effort =    None                    # Real joint efforts    (does not include gripper)
 
-    qg = None # combined desired joint/gripper joint angles
-    qgdot = None # combined desired joint/gripper angular velocities
+    grip_position = None                # Real gripper position
+    grip_qdot = None                    # Real gripper velocity
+    grip_effort = None                  # Real gripper effort
 
-    start_time = 0 # time of initialization
+    qg = None                           # Combined desired joint/gripper joint angles
+    qgdot = None                        # Combined desired joint/gripper joint velocities
 
     arm_state = ArmState.START # initialize state machine
     arm_killed = False # true when someone wants the arm to die
