@@ -53,7 +53,7 @@ CHECK_HEIGHT = 0.05                     # Gripper height offset when looking for
 FIRST_ALIGN_HEIGHT = 0.03               # Arm height when it does first alignment check
 HOVER_HEIGHT = 0.07                     # Gripper height offset when placing down the track
 
-SEENUB_OFFSET = 0.0     # 0.015         # Backup offset when checking nub to ensure it is seen
+SEENUB_OFFSET = 0.015                   # increment of distance to move back along the track in order to see the nub when picking up
 TRACK_OFFSET = 0.0                      # Distance offset when given the location of a placed track
                                         # to connect to
 
@@ -427,7 +427,7 @@ class VanderNode(Node):
     if r is not none, then x and y offsets can be none
     theta is the offset desired in beta
     '''
-    def goto_offset(self, qfgrip, next_state, x_offset, y_offset, z_offset, r=None, theta=None):
+    def goto_offset(self, qfgrip, next_state, x_offset, y_offset, z_offset, r=None, theta=None, spline_type="cartesian"):
         self.arm_state = next_state
         
         pgoal, _, _, _ = self.chain.fkin(np.reshape(self.position, (-1, 1)))
@@ -450,7 +450,13 @@ class VanderNode(Node):
 
         pgoal = np.append(pgoal, [alpha, beta])
 
-        self.SQ.enqueue_polar(pgoal, ZERO_VEL, qfgrip, next_state.duration)
+        if spline_type == "polar":
+            self.SQ.enqueue_polar(pgoal, ZERO_VEL, qfgrip, next_state.duration)
+        elif spline_type == "cartesian":
+            self.SQ.enqueue_task(pgoal, ZERO_VEL, qfgrip, next_state.duration)
+        else:
+            self.get_logger().info("Unknown spline type, not gonna go to offset")
+
 
     '''
     Does this by getting the world space coordinates of the purple nub.
@@ -633,7 +639,14 @@ class VanderNode(Node):
                 self.grabbing_track_pub.publish(posemsg)
 
                 if self.purple_visible: # we see purple, so lower
-                    self.goto_offset(OPEN_GRIP, ArmState.LOWER, 0, 0, -(CHECK_HEIGHT), None, None)
+                    self.goto_offset(qfgrip=OPEN_GRIP, 
+                                     next_state=ArmState.LOWER, 
+                                     x_offset=0, 
+                                     y_offset=0, 
+                                     z_offset=-(CHECK_HEIGHT), 
+                                     r=None, 
+                                     theta=None,
+                                     spline_type="cartesian")
                     self.check_attempts = 0
                 else:
                     # self.get_logger().info(f"check attempts {self.check_attempts}")
@@ -643,7 +656,14 @@ class VanderNode(Node):
                         self.SQ.enqueue_joint(np.append(self.qg[0:4], wrap(self.qg[4]+np.pi, 2*np.pi)), ZERO_QDOT, OPEN_GRIP, ArmState.SPIN_180.duration)
                     elif self.check_attempts == 2:
                         # move back
-                        self.goto_offset(OPEN_GRIP, ArmState.CHECK_GRIP, 0, 0, 0, -3*SEENUB_OFFSET, None)
+                        self.goto_offset(qfgrip=OPEN_GRIP, 
+                                         next_state=ArmState.CHECK_GRIP,
+                                         x_offset=0, 
+                                         y_offset=0, 
+                                         z_offset=0, 
+                                         r=-3*SEENUB_OFFSET, 
+                                         theta=None,
+                                         spline_type="cartesian")
                         # then check to see if purple dot visible
                         self.SQ.enqueue_hold(ArmState.CHECK_GRIP.duration)
                     elif self.check_attempts == 3:
@@ -652,7 +672,14 @@ class VanderNode(Node):
                         self.SQ.enqueue_joint(np.append(self.qg[0:4], wrap(self.qg[4]+np.pi, 2*np.pi)), ZERO_QDOT, OPEN_GRIP, ArmState.SPIN_180.duration)
                     elif self.check_attempts == 4:
                         # last effort. Move back and check if purple dot visible
-                        self.goto_offset(OPEN_GRIP, ArmState.CHECK_GRIP, 0, 0, 0, -6*SEENUB_OFFSET, None)
+                        self.goto_offset(qfgrip=OPEN_GRIP, 
+                                         next_state=ArmState.CHECK_GRIP,
+                                         x_offset=0, 
+                                         y_offset=0, 
+                                         z_offset=0, 
+                                         r=-6*SEENUB_OFFSET, 
+                                         theta=None,
+                                         spline_type="cartesian")
                         self.SQ.enqueue_hold(ArmState.CHECK_GRIP.duration)
                     else:
                         # give up & go home
@@ -679,7 +706,14 @@ class VanderNode(Node):
         elif self.arm_state == ArmState.CHECK_FORNUB:
             if self.SQ.isEmpty():
                 if not self.purple_visible: # back up a bit so we can see purple!
-                    self.goto_offset(OPEN_GRIP, ArmState.BACKUP_FORNUB, 0, 0, 0, -SEENUB_OFFSET, None)
+                    self.goto_offset(qfgrip=OPEN_GRIP, 
+                                    next_state=ArmState.BACKUP_FORNUB,
+                                    x_offset=0, 
+                                    y_offset=0, 
+                                    z_offset=0, 
+                                    r=-SEENUB_OFFSET, 
+                                    theta=None,
+                                    spline_type="cartesian")
                 else:
                     self.arm_state = ArmState.GRAB
                     self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, CLOSED_GRIP, ArmState.GRAB.duration)
@@ -691,7 +725,15 @@ class VanderNode(Node):
                     self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, CLOSED_GRIP, ArmState.GRAB.duration)
                 else:
                     # keep backing up
-                    self.goto_offset(OPEN_GRIP, ArmState.BACKUP_FORNUB, 0, 0, 0, -SEENUB_OFFSET, None) # back it up again!
+                    self.goto_offset(qfgrip=OPEN_GRIP, 
+                                         next_state=ArmState.BACKUP_FORNUB,
+                                         x_offset=0, 
+                                         y_offset=0, 
+                                         z_offset=0, 
+                                         r=-SEENUB_OFFSET, 
+                                         theta=None,
+                                         spline_type="cartesian")
+                    # back it up again!
 
         elif self.arm_state == ArmState.GRAB:
             if self.SQ.isEmpty():
@@ -705,7 +747,14 @@ class VanderNode(Node):
                 posemsg = dh.get_rect_pose_msg((ptip[0], ptip[1]), self.qg[0] - self.qg[4])
                 self.grabbed_track_pub.publish(posemsg)
                 # Move upwards
-                self.goto_offset(CLOSED_GRIP, ArmState.RAISE_PICKUP, 0, 0, HOVER_HEIGHT, None, None)
+                self.goto_offset(qfgrip=CLOSED_GRIP, 
+                                next_state=ArmState.RAISE_PICKUP,
+                                x_offset=0, 
+                                y_offset=0, 
+                                z_offset=HOVER_HEIGHT, 
+                                r=None, 
+                                theta=None,
+                                spline_type="cartesian")
 
  
 
@@ -721,7 +770,14 @@ class VanderNode(Node):
         elif self.arm_state == ArmState.GOTO_PLACE:
             if self.SQ.isEmpty():
                 if self.skip_align:
-                    self.goto_offset(CLOSED_GRIP, ArmState.PLACE, 0, 0, -(FIRST_ALIGN_HEIGHT), None, None)
+                    self.goto_offset(qfgrip=CLOSED_GRIP, 
+                                    next_state=ArmState.PLACE,
+                                    x_offset=0, 
+                                    y_offset=0, 
+                                    z_offset=-(FIRST_ALIGN_HEIGHT), 
+                                    r=None, 
+                                    theta=None,
+                                    spline_type="cartesian")
                 else:
                     self.arm_state = ArmState.ALIGN
 
@@ -729,7 +785,14 @@ class VanderNode(Node):
                     self.get_logger().info("dx %r, dy %r, dtheta %r" % (dx, dy, dtheta))
                     dtheta = 0.0 # TODO uh i guess we don't need this now
 
-                    self.goto_offset(CLOSED_GRIP, ArmState.ALIGN, dx, dy, 0, None, dtheta)
+                    self.goto_offset(qfgrip=CLOSED_GRIP, 
+                                    next_state=ArmState.ALIGN,
+                                    x_offset=dx, 
+                                    y_offset=dy, 
+                                    z_offset=0, 
+                                    r=None, 
+                                    theta=dtheta,
+                                    spline_type="cartesian")
 
                     # alpha = self.qg[1] - self.qg[2] + self.qg[3]
                     # beta = d_theta
@@ -746,7 +809,14 @@ class VanderNode(Node):
         elif self.arm_state == ArmState.ALIGN:
             if self.SQ.isEmpty():
                 # descend 
-                self.goto_offset(CLOSED_GRIP, ArmState.PLACE, 0, 0, -(FIRST_ALIGN_HEIGHT), None, None)
+                self.goto_offset(qfgrip=CLOSED_GRIP, 
+                                next_state=ArmState.PLACE,
+                                x_offset=0, 
+                                y_offset=0, 
+                                z_offset=-(FIRST_ALIGN_HEIGHT), 
+                                r=None, 
+                                theta=None,
+                                spline_type="cartesian")
 
         elif self.arm_state == ArmState.PLACE:
             if self.SQ.isEmpty():
@@ -759,7 +829,14 @@ class VanderNode(Node):
                 ptip = ptip.flatten()
                 posemsg = dh.get_rect_pose_msg((ptip[0], ptip[1]), self.qg[0] - self.qg[4])
                 self.placed_track_pub.publish(posemsg)
-                self.goto_offset(OPEN_GRIP, ArmState.RAISE_RELEASE, 0, 0, HOVER_HEIGHT, None, None)
+                self.goto_offset(qfgrip=OPEN_GRIP, 
+                                    next_state=ArmState.RAISE_RELEASE,
+                                    x_offset=0, 
+                                    y_offset=0, 
+                                    z_offset=HOVER_HEIGHT, 
+                                    r=None, 
+                                    theta=None,
+                                    spline_type="cartesian")
                 
 
         elif self.arm_state == ArmState.RAISE_RELEASE:
