@@ -30,8 +30,9 @@ RATE = 100.0                            # transmit rate, in Hertz
 
 
 ''' Joint Positions '''
-IDLE_POS = np.array([0.,1.4,1.4,0.,0.]) # Holding position over table
-DOWN_POS = np.array([0.,0.,0.55,0.,0.]) # Position lying straight out over table
+# IDLE_POS = np.array([0.,1.4,1.4,0.,0.]) # Holding position over table
+IDLE_POS = np.array([1.4,1.4,1.4,0.,0.]) # Holding position over table
+DOWN_POS = np.array([1.4,0.,0.55,0.,0.]) # Position lying straight out over table
 
 OPEN_GRIP   = -0.3
 CLOSED_GRIP = -0.8
