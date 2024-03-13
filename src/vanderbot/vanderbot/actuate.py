@@ -6,6 +6,9 @@
 #   messages from the Detector node in the form of arm camera on-screen
 #   locations of objects.
 
+#   Use this to lie down the arm
+#     ros2 topic pub -1 /LieDown std_msgs/msg/String "{data: 'LieDown'}"
+
 import numpy as np
 import rclpy
 import vanderbot.DetectHelpers as dh
@@ -33,7 +36,7 @@ RATE = 100.0                            # transmit rate, in Hertz
 IDLE_POS = np.array([-1.3,1.4,1.4,0.,0.])       # Holding position over table
 DOWN_POS = np.array([-1.4,0.,0.55,0.,0.])       # Position lying straight out over table
 
-OPEN_GRIP   = -0.3
+OPEN_GRIP   = -0.2
 CLOSED_GRIP = -0.8
 
 ZERO_QDOT = np.zeros(5)                 # Zero joint velocity
@@ -55,6 +58,8 @@ HOVER_HEIGHT = 0.07                     # Gripper height offset when placing dow
 SEENUB_OFFSET = 0.015                   # increment of distance to move back along the track in order to see the nub when picking up
 TRACK_OFFSET = 0.030                    # Distance offset when given the location of a placed track
                                         # to connect to
+NUB_RADIUS_OFFSET = 0.004               # Oversizing the nub distance when aligning
+NUB_IDEAL_THETA = 0.612                 # Theoretical nub theta when track center is grabbed
 
 
 ''' Gravity and Torque '''
@@ -64,7 +69,7 @@ GRAV_ELBOW_OFFSET = 0.01                # Phase offset (radians)
 GRAV_SHOULDER = 12.7                    # Nm
 GRAV_SHOULDER_OFFSET = -0.11            # Phase offset (radians)
 
-TAU_GRIP = -6.0                         # Closed gripper torque
+TAU_GRIP = -9.0                         # Closed gripper torque
 
 
 ''' TODO Collisions '''
@@ -165,6 +170,7 @@ class VanderNode(Node):
     arm_state = ArmState.START # initialize state machine
     arm_killed = False # true when someone wants the arm to die
     track_type = None
+    current_track = None
     
     check_attempts = 0 # counts number of times we've looked for a purple nub
 
@@ -509,16 +515,24 @@ class VanderNode(Node):
 
         beta = self.qg[0] - self.qg[4]
         gamma = self.nub_theta / 2
+        self.get_logger().info(f"Current track {self.current_track}")
         
 
         # offsets for the end effector
-        d_theta = -self.nub_theta # need to align to the bottom of the green contour
+        d_theta = self.current_track * NUB_IDEAL_THETA - self.nub_theta # need to align to the bottom of the green contour
+        dx = green_dx
+        dy = green_dy
+
+        # In possession of a curved track
+        if self.current_track != 0:     # Curved track
+            beta - self.current_track * np.pi/6
+        
         # self.get_logger().info(f"Beta {beta}")
         # self.get_logger().info(f"Gamma {gamma}")
         # self.get_logger().info(f"Nub r dx {self.nub_r * np.cos(beta + gamma)}")
         # self.get_logger().info(f"Nub r dy {self.nub_r * np.sin(beta + gamma)}")
-        dx = green_dx - self.nub_r * np.cos(beta - gamma)
-        dy = green_dy - self.nub_r * np.sin(beta - gamma)
+        dx = green_dx - (self.nub_r + NUB_RADIUS_OFFSET) * np.cos(beta - gamma)
+        dy = green_dy - (self.nub_r + NUB_RADIUS_OFFSET) * np.sin(beta - gamma)
 
         return dx, dy, d_theta 
 
@@ -740,6 +754,7 @@ class VanderNode(Node):
                     # back it up again!
 
         elif self.arm_state == ArmState.GRAB:
+            self.current_track = self.track_type
             if self.SQ.isEmpty():
                 # don't get nub location until we've grabbed (since grabbing can change the position of the nub)
                 self.get_nub_location()
@@ -787,7 +802,7 @@ class VanderNode(Node):
 
                     dx, dy, dtheta = self.align_calc()
                     self.get_logger().info("dx %r, dy %r, dtheta %r" % (dx, dy, dtheta))
-                    dtheta = 0.0 # TODO uh i guess we don't need this now
+                    # dtheta = 0.0 # TODO uh i guess we don't need this now
 
                     self.goto_offset(qfgrip=CLOSED_GRIP, 
                                     next_state=ArmState.ALIGN,
