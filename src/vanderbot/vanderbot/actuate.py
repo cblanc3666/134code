@@ -23,7 +23,7 @@ from geometry_msgs.msg                  import Point, Pose, Polygon, PoseArray
 from vanderbot.KinematicChain           import KinematicChain
 from vanderbot.TransformHelpers         import *
 from vanderbot.Segments                 import Goto5, QuinticSpline
-from std_msgs.msg                       import String, Float32
+from std_msgs.msg                       import String, Float32, Bool
 
 
 
@@ -247,7 +247,7 @@ class VanderNode(Node):
             Point, '/PurpleCirc', self.recvpurplecirc, 10)
         
         self.placed_track_pub = self.create_publisher(PoseArray, '/PlacedTrack', 10) #Lets gamestate know when track is placed
-        self.grabbing_track_pub = self.create_publisher(Pose, '/GrabbingTrack', 10) #Lets gamestate know when gripper is hovering over track
+        self.grabbing_track_pub = self.create_publisher(Bool, '/GrabbingTrack', 10) #Lets gamestate know when gripper is hovering over track
         self.grabbed_track_pub = self.create_publisher(Pose, '/GrabbedTrack', 10) #Lets gamestate know when gripper grabbed the track
 
         # publisher to tell the arm to lie down so we can kill it safely
@@ -473,7 +473,7 @@ class VanderNode(Node):
         nub_u = np.copy(self.purple_u)
         nub_v = np.copy(self.purple_v)
         
-        self.get_logger().info(f"Nub (u, v) {nub_u}, {nub_v}")
+        # self.get_logger().info(f"Nub (u, v) {nub_u}, {nub_v}")
 
         (x_pnub, y_pnub, _) = self.arm_pixel_to_position(nub_u, nub_v).flatten()
 
@@ -492,8 +492,8 @@ class VanderNode(Node):
         cnt_x = centroid[0][0]
         cnt_y = centroid[1][0]
         direction_vec = np.linalg.norm(np.copy(self.green_orientation))
-        self.get_logger().info(f"Direction {direction_vec} cnt_x {centroid[0][0]} cnt_y {centroid[1][0]}")
-        self.get_logger().info(f"Nub theta {self.nub_theta}")
+        # self.get_logger().info(f"Direction {direction_vec} cnt_x {centroid[0][0]} cnt_y {centroid[1][0]}")
+        # self.get_logger().info(f"Nub theta {self.nub_theta}")
 
         ptip, _, _, _  = self.chain.fkin(np.reshape(self.position, (-1, 1)))
         ptip = ptip.flatten()
@@ -645,11 +645,10 @@ class VanderNode(Node):
                     
         elif self.arm_state == ArmState.CHECK_GRIP:
             if self.SQ.isEmpty():
-                #Tell gamestate that gripper is hovering over track
-                ptip, _, _, _  = self.chain.fkin(np.reshape(self.position, (-1, 1)))
-                ptip = ptip.flatten()
-                posemsg = dh.get_rect_pose_msg((ptip[0], ptip[1]), self.qg[0] - self.qg[4])
-                self.grabbing_track_pub.publish(posemsg)
+                #Tell gamestate that gripper is about to grab a track
+                grabbing = Bool()
+                grabbing.data = True
+                
 
                 if self.purple_visible: # we see purple, so lower
                     self.goto_offset(qfgrip=OPEN_GRIP, 
@@ -699,6 +698,9 @@ class VanderNode(Node):
                         self.check_attempts = 0
                         self.arm_state = ArmState.RETURN
                         self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, OPEN_GRIP, ArmState.RETURN.duration)
+                        grabbing.data = False
+
+                self.grabbing_track_pub.publish(grabbing)
 
         elif self.arm_state == ArmState.SPIN_180:
             if self.SQ.isEmpty():
@@ -843,7 +845,6 @@ class VanderNode(Node):
         elif self.arm_state == ArmState.PLACE:
             if self.SQ.isEmpty():
                 if self.skip_align: # no need to wiggle
-                    self.get_logger().info("no wiggle")
                     self.arm_state = ArmState.RELEASE
                     self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, OPEN_GRIP, ArmState.RELEASE.duration)
                 else:

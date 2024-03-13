@@ -10,6 +10,7 @@ import cv_bridge
 from rclpy.node                 import Node
 from sensor_msgs.msg            import JointState
 from geometry_msgs.msg          import Point, Pose, Quaternion, Polygon, PoseArray, Point32
+from std_msgs.msg               import Bool
 import vanderbot.DetectHelpers as dh
 from vanderbot.hexagonalplanner import GridNode, HexagonalGrid, Planner, Track
 
@@ -24,12 +25,13 @@ class GameState(Node):
     STATES = {"Straight" : 0.0, "Right" : 1.0, "Left" : -1.0}
     START_LOC = (0.6, 0.4)
     GOAL_LOC = (-0.3, 0.3)
-    # START_LOC = (0.3, 0.5)
     # GOAL_LOC = (0.1, 0.1)
     DIST_THRESH = 1
     def __init__(self, name):
         # Initialize the node, naming it as specified
         super().__init__(name)
+
+        ''' Detector Messages '''
 
         self.orange_track_sub = self.create_subscription(
             PoseArray, '/LeftTracksOrange', self.recvtracks_orange, 10)
@@ -40,6 +42,11 @@ class GameState(Node):
         self.blue_track_sub = self.create_subscription(
             PoseArray, '/StraightTracksBlue', self.recvtracks_blue, 10)
         
+        self.start_end_sub = self.create_subscription(
+            Polygon, '/StartEndPoint', self.recvstart_end, 10)
+        
+        ''' Trajectory Code Messages '''
+
         #When a track has been placed
         self.placed_track_sub = self.create_subscription(PoseArray, '/PlacedTrack', self.placed_track, 10)
 
@@ -47,7 +54,7 @@ class GameState(Node):
         self.grabbed_track_sub = self.create_subscription(Pose, '/GrabbedTrack', self.grabbed_track, 10)
 
         #When the gripper is hovering over the track it is about to grab
-        self.grabbing_track_sub = self.create_subscription(Pose, '/GrabbingTrack', self.grabbing_track, 10)
+        self.grabbing_track_sub = self.create_subscription(Bool, '/GrabbingTrack', self.grabbing_track, 10)
 
         self.green_rect = self.create_subscription(
             Polygon, '/GreenRect', self.recvgreenrect, 10)
@@ -99,6 +106,9 @@ class GameState(Node):
         self.grabbing = False #Check if the gripper has a track in its grasp
         self.blocking_tracks = []
         self.no_blocking_tracks = True
+
+        ''' User interfacing global control '''
+        self.placing = False # True when currently placing a path
         
     def remove_placed_tracks(self, track_list):
         """
@@ -327,6 +337,14 @@ class GameState(Node):
             
         #(self.green_centroid, self.green_orientation) = self.green_rect_position(positions)
 
+    ''' Runs whenever we see the start and end point '''
+    def recvstart_end(self, msg):
+        [start, end] = msg.points
+        start.x
+        start.y
+            
+
+
     def placed_track(self, posemsg):
         if self.no_blocking_tracks:
             track_type = self.dest_track.track_type
@@ -354,9 +372,11 @@ class GameState(Node):
             if len(self.blocking_tracks) == 0:
                 self.no_blocking_tracks = True
         self.grabbing = False
+        self.important_tracks.pop(0)
+        self.planned_tracks.pop(0)
         
-    def grabbing_track(self, posemsg):
-        self.grabbing = True
+    def grabbing_track(self, msg):
+        self.grabbing = msg.data
 
     def grabbed_track(self, posemsg):
         if self.no_blocking_tracks == False:
@@ -374,8 +394,7 @@ class GameState(Node):
             else:
                 self.num_pink_tracks -= 1
                 self.get_logger().info(f"Grabbed pink track at {(x, y)}!")
-            self.important_tracks.pop(0)
-            self.planned_tracks.pop(0)
+            
         
     def create_important_tracks(self):
         track_path = []
@@ -499,18 +518,20 @@ class GameState(Node):
         # self.get_logger().info("Blue Tracks %r" % len(self.blue_tracks))
         # self.get_logger().info("Orange Tracks %r" % len(self.orange_tracks))
         # self.get_logger().info("Pink Tracks %r" % len(self.pink_tracks))
+        self.get_logger().info(f"grabbing? {self.grabbing}")
+        self.get_logger().info(f"placing?  {self.placing}")
 
         #Return if track detector cant see all the tracks described in self.important tracks
         if len(self.blue_tracks) < self.num_blue_tracks:
-            #self.get_logger().info("Not enough blue!")
+            self.get_logger().info("Not enough blue!")
             return
     
         if len(self.orange_tracks) < self.num_orange_tracks:
-            #self.get_logger().info("Not enough orange!")
+            self.get_logger().info("Not enough orange!")
             return
         
         if len(self.pink_tracks) < self.num_pink_tracks:
-            #self.get_logger().info("Not enough pink!")
+            self.get_logger().info("Not enough pink!")
             return
 
         #Intialize pose array sent to actuate.py
@@ -518,17 +539,25 @@ class GameState(Node):
 
         #Intialize self.important_tracks
         if len(self.important_tracks) == 0:
-            self.create_important_tracks()
-            test_Tracks = [str(track.track_type) for track in self.important_tracks]
-            #posemsg_cur = self.dest_track.pose #Dummy pose to send to actuate, shouldn't affect anything
-            #self.get_logger().info(f"{test_Tracks}")
+            if self.placing == True: # we have just fully placed a path
+                self.get_logger().info("back here again")
+                self.placing = False
+                return
+            else:
+                self.get_logger().info("creating important tracks")
+                self.create_important_tracks()
+                self.placing = True # true when we are actively placing tracks
+                test_Tracks = [str(track.track_type) for track in self.important_tracks]
+                #posemsg_cur = self.dest_track.pose #Dummy pose to send to actuate, shouldn't affect anything
+                #self.get_logger().info(f"{test_Tracks}")
         else:
             #Update important tracks after filtering
             self.update_important_tracks()
             
 
         #self.get_logger().info(f"{self.important_tracks[0].track_type} at {(self.important_tracks[0].pose.position.x, self.important_tracks[0].pose.position.y)} going to {(self.planned_tracks[0].pose.position.x, self.planned_tracks[0].pose.position.y)}") 
-        #self.get_logger().info(f"{len(self.important_tracks)}") 
+        # self.get_logger().info(f"{self.important_tracks}")
+        # self.get_logger().info(f"{len(self.important_tracks)}") 
             
         posemsg_cur = self.important_tracks[0].pose
         posemsg_dest = self.dest_track.pose
