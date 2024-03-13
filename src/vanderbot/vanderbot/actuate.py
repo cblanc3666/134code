@@ -30,9 +30,8 @@ RATE = 100.0                            # transmit rate, in Hertz
 
 
 ''' Joint Positions '''
-# IDLE_POS = np.array([0.,1.4,1.4,0.,0.]) # Holding position over table
-IDLE_POS = np.array([1.4,1.4,1.4,0.,0.]) # Holding position over table
-DOWN_POS = np.array([1.4,0.,0.55,0.,0.]) # Position lying straight out over table
+IDLE_POS = np.array([-1.3,1.4,1.4,0.,0.])       # Holding position over table
+DOWN_POS = np.array([-1.4,0.,0.55,0.,0.])       # Position lying straight out over table
 
 OPEN_GRIP   = -0.3
 CLOSED_GRIP = -0.8
@@ -54,7 +53,7 @@ FIRST_ALIGN_HEIGHT = 0.03               # Arm height when it does first alignmen
 HOVER_HEIGHT = 0.07                     # Gripper height offset when placing down the track
 
 SEENUB_OFFSET = 0.015                   # increment of distance to move back along the track in order to see the nub when picking up
-TRACK_OFFSET = 0.0                      # Distance offset when given the location of a placed track
+TRACK_OFFSET = 0.030                    # Distance offset when given the location of a placed track
                                         # to connect to
 
 
@@ -113,7 +112,10 @@ class ArmState(Enum):
     ALIGN = 5.0, []                     # Aligns the purple nub with the green track end
     PLACE = 6.0, []                     # Moves arm downwards to connect track
     RELEASE = 2.0, []                   # Opens gripper to release track
-    RAISE_RELEASE = 2.0, [] # raise clear of track before moving away
+    RAISE_RELEASE = 2.0, []             # Raise clear of track before moving away
+    CLOSE_FOR_PUSH = 2.0, []            # Close gripper to push track into place
+    PUSH_INTO_PLACE = 2.0, []           # Push track into place!!
+
     LIE_DOWN = 1.0, []                  # Tells arm to go to DOWN_POS regardless of current action
 
 
@@ -136,8 +138,8 @@ class TrackColor(Enum):
 
 
     BLUE = 0.0                          # Straight track
-    PINK = 0.0  #np.pi/6.0              # Left turn track needs to be rotated by 30 degrees right
-    ORANGE = 0.0 #-np.pi/6.0            # Right turn
+    PINK = 0.0      #np.pi/6.0          # Left turn track needs to be rotated by 30 degrees right
+    ORANGE = 0.0    #-np.pi/6.0         # Right turn
 
 
 
@@ -254,7 +256,7 @@ class VanderNode(Node):
         self.purple_circ = self.create_subscription(
             Point, '/PurpleCirc', self.recvpurplecirc, 10)
         
-        self.placed_track_pub = self.create_publisher(Pose, '/PlacedTrack', 10) #Lets gamestate know when track is placed
+        self.placed_track_pub = self.create_publisher(PoseArray, '/PlacedTrack', 10) #Lets gamestate know when track is placed
         self.grabbing_track_pub = self.create_publisher(Pose, '/GrabbingTrack', 10) #Lets gamestate know when gripper is hovering over track
         self.grabbed_track_pub = self.create_publisher(Pose, '/GrabbedTrack', 10) #Lets gamestate know when gripper grabbed the track
 
@@ -473,13 +475,15 @@ class VanderNode(Node):
         nub_u = np.copy(self.purple_u)
         nub_v = np.copy(self.purple_v)
         
-        self.get_logger().info(f"Nub (u, v) {nub_u}, {nub_v}")
+        # self.get_logger().info(f"Nub (u, v) {nub_u}, {nub_v}")
 
         (x_pnub, y_pnub, _) = self.arm_pixel_to_position(nub_u, nub_v).flatten()
 
         self.nub_r = np.sqrt((x_ptip - x_pnub)**2 + (y_ptip - y_pnub)**2 )
         # TODO track type
         self.nub_theta = self.track_type * np.arccos(1 - self.nub_r**2 / (2 * TRACK_TURN_RADIUS**2))
+        
+        self.nub_pos = (x_pnub, y_pnub)
 
     '''
     Get offsets for the end effector to align grabbed track with green rectangle
@@ -498,8 +502,8 @@ class VanderNode(Node):
         (x_ptip, y_ptip, _) = ptip
 
         # get offset of green contour from end effector
-        self.get_logger().info(f"x_ptip {x_ptip}")
-        self.get_logger().info(f"y_ptip {y_ptip}")
+        # self.get_logger().info(f"x_ptip {x_ptip}")
+        # self.get_logger().info(f"y_ptip {y_ptip}")
         green_dx = cnt_x - x_ptip
         green_dy = cnt_y - y_ptip
 
@@ -509,10 +513,10 @@ class VanderNode(Node):
 
         # offsets for the end effector
         d_theta = -self.nub_theta # need to align to the bottom of the green contour
-        self.get_logger().info(f"Beta {beta}")
-        self.get_logger().info(f"Gamma {gamma}")
-        self.get_logger().info(f"Nub r dx {self.nub_r * np.cos(beta + gamma)}")
-        self.get_logger().info(f"Nub r dy {self.nub_r * np.sin(beta + gamma)}")
+        # self.get_logger().info(f"Beta {beta}")
+        # self.get_logger().info(f"Gamma {gamma}")
+        # self.get_logger().info(f"Nub r dx {self.nub_r * np.cos(beta + gamma)}")
+        # self.get_logger().info(f"Nub r dy {self.nub_r * np.sin(beta + gamma)}")
         dx = green_dx - self.nub_r * np.cos(beta - gamma)
         dy = green_dy - self.nub_r * np.sin(beta - gamma)
 
@@ -779,7 +783,7 @@ class VanderNode(Node):
                                     theta=None,
                                     spline_type="cartesian")
                 else:
-                    self.arm_state = ArmState.ALIGN
+                    self.arm_state = ArmState.ALIGN    
 
                     dx, dy, dtheta = self.align_calc()
                     self.get_logger().info("dx %r, dy %r, dtheta %r" % (dx, dy, dtheta))
@@ -793,18 +797,6 @@ class VanderNode(Node):
                                     r=None, 
                                     theta=dtheta,
                                     spline_type="cartesian")
-
-                    # alpha = self.qg[1] - self.qg[2] + self.qg[3]
-                    # beta = d_theta
-
-                    # align_goal = np.copy(self.align_position)
-                    # alpha = self.qg[1] - self.qg[2] + self.qg[3]
-                    # beta = self.qg[0] - self.qg[4]
-
-                    # align_goal = np.append(align_goal, [alpha, beta])
-
-                    # # keep gripper closed
-                    # self.SQ.enqueue_polar(align_goal, ZERO_VEL, CLOSED_GRIP, ArmState.ALIGN.duration)
 
         elif self.arm_state == ArmState.ALIGN:
             if self.SQ.isEmpty():
@@ -820,15 +812,28 @@ class VanderNode(Node):
 
         elif self.arm_state == ArmState.PLACE:
             if self.SQ.isEmpty():
+                # TODO: add wiggle
                 self.arm_state = ArmState.RELEASE
                 self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, OPEN_GRIP, ArmState.RELEASE.duration)
 
         elif self.arm_state == ArmState.RELEASE:
             if self.SQ.isEmpty(): # report and then go up
+                # get position of center of track
                 ptip, _, _, _  = self.chain.fkin(np.reshape(self.position, (-1, 1)))
                 ptip = ptip.flatten()
-                posemsg = dh.get_rect_pose_msg((ptip[0], ptip[1]), self.qg[0] - self.qg[4])
-                self.placed_track_pub.publish(posemsg)
+                center = dh.get_rect_pose_msg((ptip[0], ptip[1]), self.qg[0] - self.qg[4])
+                self.get_logger().info(f"angle {center.orientation.z}")
+
+                self.get_nub_location()
+                # angle doesn't matter, just need pos
+                nub = dh.get_rect_pose_msg(self.nub_pos, 0.0) 
+
+                placed_pose = PoseArray() # tell gamestate...
+                placed_pose.poses.append(center)  # where we placed track
+                placed_pose.poses.append(nub)     # where its purple nub was
+
+
+                self.placed_track_pub.publish(placed_pose)
                 self.goto_offset(qfgrip=OPEN_GRIP, 
                                     next_state=ArmState.RAISE_RELEASE,
                                     x_offset=0, 
@@ -867,6 +872,7 @@ class VanderNode(Node):
         self.cmdmsg.position = list(qg)
         self.cmdmsg.velocity = list(qgdot)
 
+
         track_error = self.chain.fkin(self.qg[:5])[0][2]-self.chain.fkin(self.position)[0][2]
         # self.get_logger().info("z tracking error %r" % track_error)
 
@@ -888,6 +894,9 @@ class VanderNode(Node):
         # nan = float("nan")
         # self.cmdmsg.position = (nan, nan, nan, nan, nan, nan)
         # self.cmdmsg.velocity = (nan, nan, nan, nan, nan, nan)
+
+
+        # self.get_logger().info("current gripper qg %r" % self.qg[5])
 
         self.cmdpub.publish(self.cmdmsg)
 

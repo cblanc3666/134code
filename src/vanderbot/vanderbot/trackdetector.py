@@ -46,7 +46,7 @@ class DetectorNode(Node):
     MIN_NUB_AREA = 800 * RESOLUTION * RESOLUTION
 
     # Thresholds in Hmin/max, Smin/max, Vmin/max 
-    HSV_ORANGE = np.array([[4, 18], [80, 255], [30, 255]])
+    HSV_ORANGE = np.array([[2, 18], [80, 255], [30, 255]])
     HSV_PINK = np.array([[150, 180], [80, 255], [120, 255]])
     HSV_PURPLE = np.array([[160, 180], [60, 255], [120, 255]])
     HSV_GREEN_CEIL = np.array([[36, 100], [52, 255], [0, 255]])
@@ -177,13 +177,19 @@ class DetectorNode(Node):
             Return None for the point if not all the Aruco markers are detected
             '''
 
-            # Detect the Aruco markers (using the 4X4 dictionary).
+            # Detect the Aruco markers (using the 5X5 dictionary).
             if annotateImage:
                 cv2.aruco.drawDetectedMarkers(image, markerCorners, markerIds)
 
-            # Abort if not all markers are detected.
-            if (markerIds is None or len(markerIds) != 4 or
-                set(markerIds.flatten()) != set([1,2,3,4])):
+            
+            # self.get_logger().info(f"{markerIds.flatten()}")
+
+            # Abort if not all corner markers are detected.
+            # if (markerIds is None or 
+            #     not set([1,2,3,4]).issubset(set(markerIds.flatten()))): TODO this is the new code we want
+            if (markerIds is None or
+                len(markerIds) != 4 or 
+                set([1,2,3,4]) != set(markerIds.flatten())):
                 # self.get_logger().info("Cannot see Aruco")
                 return None
 
@@ -191,7 +197,7 @@ class DetectorNode(Node):
             # Determine the center of the marker pixel coordinates.
             uvMarkers = np.zeros((4,2), dtype='float32')
             
-            for i in range(4):
+            for i in range(4): # TODO right now this will take the first four markers it sees but that is not necessarily markers 1-4
                 uvMarkers[markerIds[i]-1,:] = np.mean(markerCorners[i], axis=1)
 
             uvMarkersUndistorted = cv2.undistortPoints(uvMarkers, K, D) 

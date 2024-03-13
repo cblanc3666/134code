@@ -17,6 +17,7 @@ RATE = 100
 THRESH = 0.1 #If the x or y coord of a track is at least THRESH away from a track in self.placed_track, ignore track
 T_POS = 0.15 #Filtering coefficient for filtering position
 T_ANGLE = 0.1 #Filtering coefficient for filtering angle
+R = 0.1 #If a track is less than a distance R away from the destination, it will move that track away
 
 
 class GameState(Node):
@@ -40,7 +41,7 @@ class GameState(Node):
             PoseArray, '/StraightTracksBlue', self.recvtracks_blue, 10)
         
         #When a track has been placed
-        self.placed_track_sub = self.create_subscription(Pose, '/PlacedTrack', self.placed_track, 10)
+        self.placed_track_sub = self.create_subscription(PoseArray, '/PlacedTrack', self.placed_track, 10)
 
         #When a track has been grabbed
         self.grabbed_track_sub = self.create_subscription(Pose, '/GrabbedTrack', self.grabbed_track, 10)
@@ -54,9 +55,9 @@ class GameState(Node):
         # self.purple_circ = self.create_subscription(
         #     Point, '/PurpleCirc', self.recvpurplecirc, 10)
         
-        self.orange_tracks = [] #List of tracks of type Track
-        self.pink_tracks = [] #List of tracks of type Track
-        self.blue_tracks = [] #List of tracks of type Track
+        self.orange_tracks = [] #List of tracks of type Track - only UNPLACED tracks
+        self.pink_tracks = [] #List of tracks of type Track - only UNPLACED tracks
+        self.blue_tracks = [] #List of tracks of type Track - only UNPLACED tracks
         self.green_rect = None #Last Polygon message of green rectangle sent from trackdetector
         self.purple_circ = None #Last point message of purple circle sent from trackdetector
 
@@ -94,9 +95,10 @@ class GameState(Node):
         self.orange_times = [None, None, None, None]
         self.green_rect_time = None
         self.purple_circ_time = None
-        self.important_times = [None, None, None, None]
 
         self.grabbing = False #Check if the gripper has a track in its grasp
+        self.blocking_tracks = []
+        self.no_blocking_tracks = True
         
     def remove_placed_tracks(self, track_list):
         """
@@ -184,7 +186,7 @@ class GameState(Node):
     
 
     def track_filtering(self, tracks, new_tracks, times, add = True):
-        #Removes the appropriate track from tracks when a track is removed for a certain time
+        #Removes the appropriate track from tracks when a track is not visible for a certain time
         if len(new_tracks) < len(tracks):
             if self.grabbing == False:
                 t_now = self.get_clock().now().nanoseconds * 1e-9
@@ -326,79 +328,161 @@ class GameState(Node):
         #(self.green_centroid, self.green_orientation) = self.green_rect_position(positions)
 
     def placed_track(self, posemsg):
-        track_type = self.dest_track.track_type
-        x = round(posemsg.position.x, 3)
-        y = round(posemsg.position.y, 3)
-        if track_type == "Straight":
-            self.get_logger().info(f"Placed blue track at {(x, y)}!")
-        elif track_type == "Right":
-            self.get_logger().info(f"Placed orange track at {(x, y)}!")
+        if self.no_blocking_tracks:
+            track_type = self.dest_track.track_type
+            x = posemsg.poses[0].position.x
+            y = posemsg.poses[0].position.y
+            if track_type == "Straight":
+                self.get_logger().info(f"Placed blue track at {(round(x, 3), round(y, 3))}!")
+            elif track_type == "Right":
+                self.get_logger().info(f"Placed orange track at {(round(x, 3), round(y, 3))}!")
+            else:
+                self.get_logger().info(f"Placed pink track at {(round(x, 3), round(y, 3))}!")
+            self.get_logger().info(f"Angle = {2*np.arcsin(posemsg.poses[0].orientation.z * 180 / np.pi)}")
+            #self.get_logger().info(f"{track_type}")
+            self.placed_tracks.append(Track(posemsg.poses[0], track_type))
+            new_start = (posemsg.poses[1].position.x, posemsg.poses[1].position.y)
+            self.get_logger().info(f"Purple Circle at {new_start}")
+
+            for track in self.planned_tracks:
+                track.pose.position.x += x - self.dest_track.pose.position.x
+                track.pose.position.y += y - self.dest_track.pose.position.y
+
+            if len(self.planned_tracks) != 0:
+                self.dest_track = self.planned_tracks[0]
         else:
-            self.get_logger().info(f"Placed pink track at {(x, y)}!")
-        #self.get_logger().info(f"{track_type}")
-        self.placed_tracks.append(Track(posemsg, track_type))
-        if len(self.planned_tracks) != 0:
-            self.dest_track = self.planned_tracks[0]
+            if len(self.blocking_tracks) == 0:
+                self.no_blocking_tracks = True
         self.grabbing = False
         
     def grabbing_track(self, posemsg):
         self.grabbing = True
 
     def grabbed_track(self, posemsg):
-        track_type = self.important_tracks[0].track_type
-        x = round(posemsg.position.x, 3)
-        y = round(posemsg.position.y, 3)
-        if track_type == "Straight":
-            self.num_blue_tracks -= 1
-            self.get_logger().info(f"Grabbed blue track at {(x, y)}!")
-        elif track_type == "Right":
-            self.num_orange_tracks -= 1
-            self.get_logger().info(f"Grabbed orange track at {(x, y)}!")
+        if self.no_blocking_tracks == False:
+            self.blocking_tracks.pop(0)
         else:
-            self.num_pink_tracks -= 1
-            self.get_logger().info(f"Grabbed pink track at {(x, y)}!")
-        self.important_tracks.pop(0)
-        self.planned_tracks.pop(0)
+            track_type = self.important_tracks[0].track_type
+            x = round(posemsg.position.x, 3)
+            y = round(posemsg.position.y, 3)
+            if track_type == "Straight":
+                self.num_blue_tracks -= 1
+                self.get_logger().info(f"Grabbed blue track at {(x, y)}!")
+            elif track_type == "Right":
+                self.num_orange_tracks -= 1
+                self.get_logger().info(f"Grabbed orange track at {(x, y)}!")
+            else:
+                self.num_pink_tracks -= 1
+                self.get_logger().info(f"Grabbed pink track at {(x, y)}!")
+            self.important_tracks.pop(0)
+            self.planned_tracks.pop(0)
         
+    def create_important_tracks(self):
+        track_path = []
+        cur_blue_idxs = []
+        cur_orange_idxs = []
+        cur_pink_idxs = []
+        for track in self.planned_tracks:
+            track_type = track.track_type
+            if track_type == "Straight":
+                closest_idx, _, _ = self.find_closest_track(track, self.blue_tracks)
+                if closest_idx not in cur_blue_idxs:
+                    track_path.append(self.blue_tracks[closest_idx])
+                    cur_blue_idxs.append(closest_idx)
+                else:
+                    while True:
+                        idx = np.random.randint(0, len(self.blue_tracks))
+                        if idx not in cur_blue_idxs:
+                            track_path.append(self.blue_tracks[idx])
+                            cur_blue_idxs.append(idx)
+                            break
 
-    def update_important_tracks(self, initialize = False):
+            elif track_type == "Right":
+                closest_idx, _, _ = self.find_closest_track(track, self.orange_tracks)
+                if closest_idx not in cur_orange_idxs:
+                    track_path.append(self.orange_tracks[closest_idx])
+                    cur_orange_idxs.append(closest_idx)
+                else:
+                    while True:
+                        idx = np.random.randint(0, len(self.orange_tracks))
+                        if idx not in cur_orange_idxs:
+                            track_path.append(self.orange_tracks[idx])
+                            cur_orange_idxs.append(idx)
+                            break
+            else:
+                closest_idx, _, _ = self.find_closest_track(track, self.pink_tracks)
+                if closest_idx not in cur_pink_idxs:
+                    track_path.append(self.pink_tracks[closest_idx])
+                    cur_pink_idxs.append(closest_idx)
+                else:
+                    while True:
+                        idx = np.random.randint(0, len(self.pink_tracks))
+                        if idx not in cur_pink_idxs:
+                            track_path.append(self.pink_tracks[idx])
+                            cur_pink_idxs.append(idx)
+                            break
+
+        if len(track_path) != 0:
+            self.get_logger().info(f"{[track.track_type for track in track_path]}")
+
+        self.important_tracks = track_path
+
+    def update_important_tracks(self):
         """
         Uses tracks from self.planned_tracks and adds them to
         self.important_tracks
         """
 
         track_path = []
-        if initialize:
-            num_straight = 0
-            num_right = 0
-            num_left = 0
-            for track in self.planned_tracks:
-                track_type = track.track_type
-                if track_type == "Straight":
-                    track_path.append(self.blue_tracks[num_straight])
-                    num_straight += 1
-                elif track_type == "Right":
-                    track_path.append(self.orange_tracks[num_right])
-                    num_right += 1
-                else:
-                    track_path.append(self.pink_tracks[num_left])
-                    num_left += 1
-            if len(track_path) != 0:
-                self.get_logger().info(f"{[track.track_type for track in track_path]}")
-
-        else:
-            for track in self.important_tracks:
-                if track.track_type == "Straight":
-                    idx, _, _ = self.find_closest_track(track, self.blue_tracks)
-                    track_path.append(self.blue_tracks[idx])
-                elif track.track_type == "Right":
-                    idx, _, _ = self.find_closest_track(track, self.orange_tracks)
-                    track_path.append(self.orange_tracks[idx])
-                else:
-                    idx, _, _ = self.find_closest_track(track, self.pink_tracks)
-                    track_path.append(self.pink_tracks[idx])
+        for track in self.important_tracks:
+            if track.track_type == "Straight":
+                idx, _, _ = self.find_closest_track(track, self.blue_tracks)
+                track_path.append(self.blue_tracks[idx])
+            elif track.track_type == "Right":
+                idx, _, _ = self.find_closest_track(track, self.orange_tracks)
+                track_path.append(self.orange_tracks[idx])
+            else:
+                idx, _, _ = self.find_closest_track(track, self.pink_tracks)
+                track_path.append(self.pink_tracks[idx])
 
         self.important_tracks = track_path
+    
+    def find_distance(self, track1_pose, track2_pose):
+        dx = track1_pose.position.x - track2_pose.position.x
+        dy = track1_pose.position.y - track2_pose.position.y
+        return np.sqrt(dx ** 2 + dy ** 2)
+
+    def find_empty_space(self):
+        all_tracks = self.blue_tracks + self.orange_tracks + self.pink_tracks
+        while True:
+            random_track_idx = np.random.randint(0, len(all_tracks))
+            good_track = True
+            for (i, track) in enumerate(all_tracks):
+                if i != random_track_idx:
+                    dist = self.find_distance(track.pose, all_tracks[random_track_idx].pose)
+                    if dist < R:
+                        good_track = False
+            if good_track:
+                break
+
+        used_track = all_tracks[random_track_idx]
+        center = (used_track.pose.position.x + 0.75 * R,
+                  used_track.pose.position.y + 0.75 * R)
+        angle = 2*np.arcsin(used_track.pose.orientation.z)
+        pose_msg = dh.get_rect_pose_msg(center, angle)
+        
+        return pose_msg
+        
+
+    def find_blocking_tracks(self, curpose, destpose):
+        if self.grabbing == False:
+            all_tracks = [self.blue_tracks, self.orange_tracks, self.pink_tracks]
+            for track_color in all_tracks:
+                for (i, track) in enumerate(track_color):
+                    dist = self.find_distance(track.pose, destpose)
+                    if dist < R and self.find_distance(track.pose, curpose) > 2 * R:
+                        self.blocking_tracks.append(track_color[i])
+                        self.no_blocking_tracks = False
 
     def cb_timer(self):
         """
@@ -429,18 +513,12 @@ class GameState(Node):
             #self.get_logger().info("Not enough pink!")
             return
 
-        #Intialize start times
-        if self.important_times[0] is None:
-            self.important_times[0] = self.get_clock().now().nanoseconds * 1e-9
-        if self.important_times[1] is None:
-            self.important_times[1] = self.get_clock().now().nanoseconds * 1e-9
-
         #Intialize pose array sent to actuate.py
         final_pose = PoseArray()
 
         #Intialize self.important_tracks
         if len(self.important_tracks) == 0:
-            self.update_important_tracks(initialize = True)
+            self.create_important_tracks()
             test_Tracks = [str(track.track_type) for track in self.important_tracks]
             #posemsg_cur = self.dest_track.pose #Dummy pose to send to actuate, shouldn't affect anything
             #self.get_logger().info(f"{test_Tracks}")
@@ -451,20 +529,22 @@ class GameState(Node):
 
         #self.get_logger().info(f"{self.important_tracks[0].track_type} at {(self.important_tracks[0].pose.position.x, self.important_tracks[0].pose.position.y)} going to {(self.planned_tracks[0].pose.position.x, self.planned_tracks[0].pose.position.y)}") 
         #self.get_logger().info(f"{len(self.important_tracks)}") 
+            
         posemsg_cur = self.important_tracks[0].pose
         posemsg_dest = self.dest_track.pose
 
-        if len(self.placed_tracks) == 0:
-            posemsg_cur.orientation.y = 1.0
-            posemsg_dest.orientation.y = 1.0
+        #self.find_blocking_tracks(posemsg_cur, posemsg_dest)
+        #self.get_logger().info(f"{self.no_blocking_tracks}")
 
-        # else:
-        #     prev_position = self.placed_tracks[len(self.placed_tracks) - 1].pose.position
-        #     prev_orientation = self.placed_tracks[len(self.placed_tracks) - 1].pose.orientation
-        #     posemsg_dest = Pose()
-        #     posemsg_dest.position = prev_position
-        #     posemsg_dest.orientation = prev_orientation
-        #     posemsg_dest.orientation.x = self.STATES[self.important_tracks[0].track_type]
+        if len(self.blocking_tracks) != 0:
+            posemsg_cur = self.blocking_tracks[0].pose
+            posemsg_cur.orientation.y = 1.0
+            posemsg_dest = self.find_empty_space()
+            posemsg_dest.orientation.y = 1.0
+        else:
+            if len(self.placed_tracks) == 0:
+                posemsg_cur.orientation.y = 1.0
+                posemsg_dest.orientation.y = 1.0
 
         final_pose.poses.append(posemsg_cur)
         final_pose.poses.append(posemsg_dest)

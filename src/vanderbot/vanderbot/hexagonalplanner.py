@@ -103,13 +103,13 @@ class HexagonalGrid:
         below_points = []
 
         #Create starting corner point
-        start_x = self.goal[0] + self.TRACK_LENGTH / (4 * np.sqrt(3))
-        start_y = self.goal[1] + self.TRACK_LENGTH / 4
+        start_x = self.start[0] + self.TRACK_LENGTH / (4 * np.sqrt(3))
+        start_y = self.start[1] + self.TRACK_LENGTH / 4
 
         m = 1
         if start_x > self.X_MAX and start_y > self.Y_MAX:
-            start_x = self.goal[0] - self.TRACK_LENGTH / (4 * np.sqrt(3))
-            start_y = self.goal[1] + self.TRACK_LENGTH / 4
+            start_x = self.start[0] - self.TRACK_LENGTH / (4 * np.sqrt(3))
+            start_y = self.start[1] + self.TRACK_LENGTH / 4
         elif start_x > self.X_MAX:
             start_x -= 2 * self.TRACK_LENGTH / np.sqrt(3)
             m += 1
@@ -317,6 +317,7 @@ class Planner:
     ANGLE_DIFF_WEIGHT = 5 
     TRACK_COLOR = {"Straight" : "#00CED1", "Left" : "#FF1493", "Right" : "#FFA500"}
     STATES = {"Straight" : 0.0, "Right" : 1.0, "Left" : -1.0}
+    D = 0.0174
 
     def __init__(self, start, goal):
         self.num_blue_tracks = 0
@@ -333,6 +334,7 @@ class Planner:
     def costtoreach(self, node):
         cost = node.parent.creach + 1
         cost += self.NEIGHBORS_WEIGHT * (6 - len(node.neighbors))
+        #cost += self.ANGLE_DIFF_WEIGHT * (self.)
 
         return cost
 
@@ -467,8 +469,17 @@ class Planner:
     def create_tracks(self):
         tracks = []
         for i in range(len(self.track_angles)):
-            posemsg = self.create_posemsg(self.track_locations[i],
-                                          self.track_angles[i], self.track_types[i])
+            dx = 0
+            dy = 0
+            if self.track_types[i] == "Left":
+                dx += self.D * np.sin(self.track_angles[i])
+                dy += -self.D * np.cos(self.track_angles[i]) 
+            elif self.track_types[i] == "Right":
+                dx += -self.D * np.sin(self.track_angles[i])
+                dy += self.D * np.cos(self.track_angles[i])
+            new_location = (self.track_locations[i][0] + dx, self.track_locations[i][1] + dy) 
+            posemsg = self.create_posemsg(new_location,
+                                        self.track_angles[i], self.track_types[i])
             new_track = Track(posemsg, self.track_types[i])
             tracks.append(new_track)
             if self.track_types[i] == "Straight":
