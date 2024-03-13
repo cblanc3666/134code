@@ -56,10 +56,13 @@ FIRST_ALIGN_HEIGHT = 0.03               # Arm height when it does first alignmen
 HOVER_HEIGHT = 0.07                     # Gripper height offset when placing down the track
 
 SEENUB_OFFSET = 0.015                   # increment of distance to move back along the track in order to see the nub when picking up
+MAX_NUB_ATTEMPTS = 5
 TRACK_OFFSET = 0.030                    # Distance offset when given the location of a placed track
                                         # to connect to
 NUB_RADIUS_OFFSET = 0.004               # Oversizing the nub distance when aligning
 NUB_IDEAL_THETA = 0.612                 # Theoretical nub theta when track center is grabbed
+
+WIGGLE_ANGLE = 0.07                     # Angle in radians with which to wiggle back and forth 
 
 
 ''' Gravity and Torque '''
@@ -109,45 +112,21 @@ class ArmState(Enum):
     CHECK_FORNUB = 2.0, []              # Check if the nub is still visible after lowering
     BACKUP_FORNUB = 0.5, []             # Backup arm to bring purple nub more into view
     SPIN_180 = 3.0, []                  # Twist motor spins to check other track side for nub
-    LOWER = 6.0, []                     # Lowering arm to pickup track
+    LOWER = 4.0, []                     # Lowering arm to pickup track
     GRAB = 2.0, []                      # Grab track
     RAISE_PICKUP = 2.0, []              # Raise track after pickup
     GOTO_PLACE = 6.0, []                # Moves to a desired placement location
     CHECK_ALIGN = 3.0, []               # Arm remains above track to find purple and green ends
     ALIGN = 5.0, []                     # Aligns the purple nub with the green track end
     PLACE = 6.0, []                     # Moves arm downwards to connect track
+    WIGGLE = 1.0, []                    # Wiggles track to link into main track
     RELEASE = 2.0, []                   # Opens gripper to release track
     RAISE_RELEASE = 2.0, []             # Raise clear of track before moving away
     CLOSE_FOR_PUSH = 2.0, []            # Close gripper to push track into place
     PUSH_INTO_PLACE = 2.0, []           # Push track into place!!
+    RAISE_FROM_PUSH = 0.5, []           # Lift up from pushing track into place
 
     LIE_DOWN = 1.0, []                  # Tells arm to go to DOWN_POS regardless of current action
-
-
-class TrackColor(Enum):
-    '''
-    Represents the three types of tracks
-    Stores their angle offsets to be used with alignment
-    Angle offset is defined as the difference between the headings at
-      at the end of the track and the center of the track
-    '''
-
-    def __new__(cls, *args, **kwds):
-        value = len(cls.__members__) + 1
-        obj = object.__new__(cls)
-        obj._value_ = value
-        return obj
-    
-    def __init__(self, angle_offset):
-        self.angle_offset = angle_offset
-
-
-    BLUE = 0.0                          # Straight track
-    PINK = 0.0      #np.pi/6.0          # Left turn track needs to be rotated by 30 degrees right
-    ORANGE = 0.0    #-np.pi/6.0         # Right turn
-
-
-
 
 
 class VanderNode(Node):
@@ -171,8 +150,11 @@ class VanderNode(Node):
     arm_killed = False # true when someone wants the arm to die
     track_type = None
     current_track = None
+    placed_pose = None # poses to hold the position of the track just placed, and its nub
     
     check_attempts = 0 # counts number of times we've looked for a purple nub
+    nub_backup_attempts = 0 # counts number of times we've backed up (by SEENUB_OFFSET) looking for purple nub
+    wiggle_counter = 0 # counts the number of wiggles :)
 
     align_position = None
 
@@ -190,7 +172,9 @@ class VanderNode(Node):
     grav_elbow = 0 # start elbow torque constant at 0
     grav_shoulder = 0 # start shoulder torque constant at 0
 
-    desired_pt = None # Destination for placement - either existing track or location for starting track
+    pickup_pt = None # where to pick up the track, in xyz
+    pickup_pt_joint = None # joint space of pickup point
+    desired_pt = None # Destination for placement - either existing track or location for starting track, in xyz
 
     # Initialization.
     def __init__(self, name):
@@ -354,8 +338,11 @@ class VanderNode(Node):
         self.track_type = curr_pose.orientation.x
         beta = 2*np.arcsin(desired_pose.orientation.z) #- self.track_type * np.pi/6 # angle offset for track type
 
-        self.desired_pt = np.array([desired_pose.position.x, desired_pose.position.y, TRACK_HEIGHT, 0.0, beta])
         angle = 2 * np.arcsin(curr_pose.orientation.z)
+
+        self.pickup_pt = np.array([x, y, z, 0.0, angle])
+        self.desired_pt = np.array([desired_pose.position.x, desired_pose.position.y, TRACK_HEIGHT, 0.0, beta])
+        
         # self.get_logger().info("Found track at (%r, %r) with angle %r" % (x, y, angle))
         self.skip_align = (desired_pose.orientation.y == 1.0)
 
@@ -434,8 +421,10 @@ class VanderNode(Node):
     if r is none, we have cartesian offset
     if r is not none, then x and y offsets can be none
     theta is the offset desired in beta
+    spline type determines whether the commanded spline is polar or cartesian
+    if duration is none, we use the duration of next_state
     '''
-    def goto_offset(self, qfgrip, next_state, x_offset, y_offset, z_offset, r=None, theta=None, spline_type="cartesian"):
+    def goto_offset(self, qfgrip, next_state, x_offset, y_offset, z_offset, r=None, theta=None, spline_type="cartesian", duration=None):
         self.arm_state = next_state
         
         pgoal, _, _, _ = self.chain.fkin(np.reshape(self.position, (-1, 1)))
@@ -458,10 +447,13 @@ class VanderNode(Node):
 
         pgoal = np.append(pgoal, [alpha, beta])
 
+        if duration is None:
+            duration = next_state.duration
+
         if spline_type == "polar":
-            self.SQ.enqueue_polar(pgoal, ZERO_VEL, qfgrip, next_state.duration)
+            self.SQ.enqueue_polar(pgoal, ZERO_VEL, qfgrip, duration)
         elif spline_type == "cartesian":
-            self.SQ.enqueue_task(pgoal, ZERO_VEL, qfgrip, next_state.duration)
+            self.SQ.enqueue_task(pgoal, ZERO_VEL, qfgrip, duration)
         else:
             self.get_logger().info("Unknown spline type, not gonna go to offset")
 
@@ -481,7 +473,7 @@ class VanderNode(Node):
         nub_u = np.copy(self.purple_u)
         nub_v = np.copy(self.purple_v)
         
-        # self.get_logger().info(f"Nub (u, v) {nub_u}, {nub_v}")
+        self.get_logger().info(f"Nub (u, v) {nub_u}, {nub_v}")
 
         (x_pnub, y_pnub, _) = self.arm_pixel_to_position(nub_u, nub_v).flatten()
 
@@ -545,6 +537,7 @@ class VanderNode(Node):
     # Send a command - called repeatedly by the timer.
     def sendcmd(self):        
         # self.get_logger().info("Desired point %r" % self.desired_pt)
+        # self.get_logger().info(f"skip align {self.skip_align}")
         # self.get_logger().info("Current state %r" % self.arm_state) # TODO turn back on; watermelon
         # Time since start
         time = self.get_clock().now().nanoseconds * 1e-9
@@ -643,6 +636,8 @@ class VanderNode(Node):
 
         elif self.arm_state == ArmState.GOTO_PICKUP:
             if self.SQ.isEmpty():                
+                # get pickup point in case we ever need to come back here
+                self.pickup_pt_joint = np.copy(self.qg[0:5])
                 self.arm_state = ArmState.CHECK_GRIP
                 self.purple_visible = False
                 # stay put while checking grip
@@ -720,7 +715,6 @@ class VanderNode(Node):
                 # stay put while checking for nub
                 self.SQ.enqueue_hold(ArmState.CHECK_FORNUB.duration)
                 
-
         elif self.arm_state == ArmState.CHECK_FORNUB:
             if self.SQ.isEmpty():
                 if not self.purple_visible: # back up a bit so we can see purple!
@@ -732,6 +726,8 @@ class VanderNode(Node):
                                     r=-SEENUB_OFFSET, 
                                     theta=None,
                                     spline_type="cartesian")
+                    # initialize counter to make sure we don't check for nub forever
+                    self.nub_backup_attempts = 0 
                 else:
                     self.arm_state = ArmState.GRAB
                     self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, CLOSED_GRIP, ArmState.GRAB.duration)
@@ -741,24 +737,43 @@ class VanderNode(Node):
                 if self.purple_visible: # if we see, grab
                     self.arm_state = ArmState.GRAB
                     self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, CLOSED_GRIP, ArmState.GRAB.duration)
-                else:
-                    # keep backing up
-                    self.goto_offset(qfgrip=OPEN_GRIP, 
-                                         next_state=ArmState.BACKUP_FORNUB,
-                                         x_offset=0, 
-                                         y_offset=0, 
-                                         z_offset=0, 
-                                         r=-SEENUB_OFFSET, 
-                                         theta=None,
-                                         spline_type="cartesian")
-                    # back it up again!
+                else: # if don't see
+                    if self.nub_backup_attempts < MAX_NUB_ATTEMPTS: # if we still have attempts left
+                        # self.get_logger().info(f"backup attempts {self.nub_backup_attempts}")
+                        # keep backing up
+                        self.goto_offset(qfgrip=OPEN_GRIP, 
+                                            next_state=ArmState.BACKUP_FORNUB,
+                                            x_offset=0, 
+                                            y_offset=0, 
+                                            z_offset=0, 
+                                            r=-SEENUB_OFFSET, 
+                                            theta=None,
+                                            spline_type="cartesian")
+                        self.nub_backup_attempts += 1
+                    else:
+                        # if this happens, we're probably oriented the wrong way
+                        # and saw the purple from another track originally
+                        self.nub_backup_attempts = 0
+
+                        # so let's go back to where we were, 
+                        self.arm_state = ArmState.CHECK_GRIP
+                        self.SQ.enqueue_joint(self.pickup_pt_joint, ZERO_VEL, OPEN_GRIP, 2.0)
+
+                        # spin around,
+                        self.SQ.enqueue_joint(np.append(self.pickup_pt_joint[0:4], wrap(self.pickup_pt_joint[4]+np.pi, 2*np.pi)), ZERO_QDOT, OPEN_GRIP, ArmState.SPIN_180.duration)
+
+                        # and check again because we would probably have seen 
+                        # the right nub if we were facing the other way originally
+                        self.SQ.enqueue_hold(ArmState.CHECK_GRIP.duration)
+                        
+                        
 
         elif self.arm_state == ArmState.GRAB:
             self.current_track = self.track_type
             if self.SQ.isEmpty():
                 # don't get nub location until we've grabbed (since grabbing can change the position of the nub)
                 self.get_nub_location()
-                self.get_logger().info("Nub r %r, nub theta %r" % (self.nub_r, self.nub_theta))
+                # self.get_logger().info("Nub r %r, nub theta %r" % (self.nub_r, self.nub_theta))
                 
                 #Tell gamestate that gripper grabbed the track
                 ptip, _, _, _  = self.chain.fkin(np.reshape(self.position, (-1, 1)))
@@ -815,21 +830,49 @@ class VanderNode(Node):
 
         elif self.arm_state == ArmState.ALIGN:
             if self.SQ.isEmpty():
-                # descend 
+                # float a bit as we wiggle
                 self.goto_offset(qfgrip=CLOSED_GRIP, 
                                 next_state=ArmState.PLACE,
                                 x_offset=0, 
                                 y_offset=0, 
-                                z_offset=-(FIRST_ALIGN_HEIGHT), 
+                                z_offset=-(FIRST_ALIGN_HEIGHT)+TRACK_DEPTH, 
                                 r=None, 
                                 theta=None,
                                 spline_type="cartesian")
 
         elif self.arm_state == ArmState.PLACE:
             if self.SQ.isEmpty():
-                # TODO: add wiggle
-                self.arm_state = ArmState.RELEASE
-                self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, OPEN_GRIP, ArmState.RELEASE.duration)
+                if self.skip_align: # no need to wiggle
+                    self.get_logger().info("no wiggle")
+                    self.arm_state = ArmState.RELEASE
+                    self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, OPEN_GRIP, ArmState.RELEASE.duration)
+                else:
+                    # try a lil wiggle
+                    self.wiggle_counter = 0
+                    self.goto_offset(qfgrip=CLOSED_GRIP,
+                                    next_state=ArmState.WIGGLE,
+                                    x_offset=0,
+                                    y_offset=0,
+                                    z_offset=0,
+                                    r=0,
+                                    theta=WIGGLE_ANGLE,
+                                    spline_type="polar")
+
+        elif self.arm_state == ArmState.WIGGLE:
+            if self.SQ.isEmpty():
+                if self.wiggle_counter == 0:
+                    self.goto_offset(qfgrip=CLOSED_GRIP,
+                                 next_state=ArmState.WIGGLE,
+                                 x_offset=0,
+                                 y_offset=0,
+                                 z_offset=-TRACK_DEPTH, # finish descending
+                                 r=0,
+                                 theta=-WIGGLE_ANGLE,
+                                 spline_type="polar")
+                    self.wiggle_counter += 1
+                else:
+                    self.arm_state = ArmState.RELEASE
+                    self.SQ.enqueue_joint(self.qg[0:5], ZERO_QDOT, OPEN_GRIP, ArmState.RELEASE.duration)
 
         elif self.arm_state == ArmState.RELEASE:
             if self.SQ.isEmpty(): # report and then go up
@@ -843,23 +886,63 @@ class VanderNode(Node):
                 # angle doesn't matter, just need pos
                 nub = dh.get_rect_pose_msg(self.nub_pos, 0.0) 
 
-                placed_pose = PoseArray() # tell gamestate...
-                placed_pose.poses.append(center)  # where we placed track
-                placed_pose.poses.append(nub)     # where its purple nub was
+                self.placed_pose = PoseArray() # tell gamestate...
+                self.placed_pose.poses.append(center)  # where we placed track
+                self.placed_pose.poses.append(nub)     # where its purple nub was
 
-
-                self.placed_track_pub.publish(placed_pose)
+                # don't publish til we've pushed into place so we don't get a new track yet
                 self.goto_offset(qfgrip=OPEN_GRIP, 
                                     next_state=ArmState.RAISE_RELEASE,
                                     x_offset=0, 
                                     y_offset=0, 
-                                    z_offset=HOVER_HEIGHT, 
+                                    z_offset=3*TRACK_DEPTH, # go high enough that we can close and push track down 
                                     r=None, 
                                     theta=None,
                                     spline_type="cartesian")
                 
 
         elif self.arm_state == ArmState.RAISE_RELEASE:
+            if self.SQ.isEmpty():
+                if self.skip_align: # no need for push, go home
+                    self.arm_state = ArmState.RETURN
+                    self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, OPEN_GRIP, ArmState.RETURN.duration)
+                else:
+                    self.get_logger().info("closing for push")
+                    self.goto_offset(qfgrip=CLOSED_GRIP, 
+                                    next_state=ArmState.CLOSE_FOR_PUSH,
+                                    x_offset=0, 
+                                    y_offset=0, 
+                                    z_offset=0, 
+                                    r=None, 
+                                    theta=None,
+                                    spline_type="cartesian")
+
+                # and make sure to publish!
+                self.placed_track_pub.publish(self.placed_pose)
+            
+        elif self.arm_state == ArmState.CLOSE_FOR_PUSH:
+            if self.SQ.isEmpty():
+                self.goto_offset(qfgrip=CLOSED_GRIP, 
+                                    next_state=ArmState.PUSH_INTO_PLACE,
+                                    x_offset=0, 
+                                    y_offset=0, 
+                                    z_offset=-3.5*TRACK_DEPTH, 
+                                    r=None, 
+                                    theta=None,
+                                    spline_type="cartesian")
+
+        elif self.arm_state == ArmState.PUSH_INTO_PLACE:
+            if self.SQ.isEmpty():
+                self.goto_offset(qfgrip=CLOSED_GRIP, 
+                                    next_state=ArmState.RAISE_FROM_PUSH,
+                                    x_offset=0, 
+                                    y_offset=0, 
+                                    z_offset=3*TRACK_DEPTH, # raise just enough to get out of the way 
+                                    r=None, 
+                                    theta=None,
+                                    spline_type="cartesian")
+
+        elif self.arm_state == ArmState.RAISE_FROM_PUSH:
             if self.SQ.isEmpty(): # go home
                 self.arm_state = ArmState.RETURN
                 self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, OPEN_GRIP, ArmState.RETURN.duration)
