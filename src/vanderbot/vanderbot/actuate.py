@@ -251,7 +251,7 @@ class VanderNode(Node):
         self.placed_track_pub = self.create_publisher(PoseArray, '/PlacedTrack', 10) #Lets gamestate know when track is placed
         self.grabbing_track_pub = self.create_publisher(Bool, '/GrabbingTrack', 10) #Lets gamestate know when gripper is hovering over track
         self.grabbed_track_pub = self.create_publisher(Pose, '/GrabbedTrack', 10) #Lets gamestate know when gripper grabbed the track
-        self.connected_track_pub = self.create_publisher(Bool, '/ConnectedTrack', 10) #Lets gamestate know when gripper is hovering over track
+        self.connected_track_pub = self.create_publisher(Bool, '/ConnectedTrack', 10) 
 
         # publisher to tell the arm to lie down so we can kill it safely
         self.liedown = self.create_subscription(
@@ -651,7 +651,7 @@ class VanderNode(Node):
                                      r=None, 
                                      theta=None,
                                      spline_type="cartesian")
-                    # # give up & go home
+                    # give up & go home
 
                     if self.check_attempts >= 2:
                         self.check_attempts = 0
@@ -659,7 +659,7 @@ class VanderNode(Node):
                         self.SQ.enqueue_joint(IDLE_POS, ZERO_QDOT, OPEN_GRIP, ArmState.RETURN.duration)
                         grabbing.data = False
 
-                    self.check_attempts += 1
+                    self.check_attempts += 1 # TODO I think this is wrong but need to check
                 else:
                     # self.get_logger().info(f"check attempts {self.check_attempts}")
                     self.check_attempts = self.check_attempts+1
@@ -797,7 +797,6 @@ class VanderNode(Node):
         elif self.arm_state == ArmState.RAISE_PICKUP:
             if self.SQ.isEmpty():
                 self.arm_state = ArmState.GOTO_PLACE
-                # self.purple_visible = False # recheck purple here
                 
                 goal_pt = np.copy(self.desired_pt)
 
@@ -809,7 +808,7 @@ class VanderNode(Node):
                 self.arm_state = ArmState.CHECK_TRACK
                 self.purple_visible = False
                 self.SQ.enqueue_hold(ArmState.CHECK_TRACK.duration)
-                    
+    
         elif self.arm_state == ArmState.CHECK_TRACK:
             if self.SQ.isEmpty():
                 if self.purple_visible:
@@ -829,7 +828,7 @@ class VanderNode(Node):
                     self.get_logger().info("Not getting track correctly! Going back to x %r, y %r" % (self.pickup_pt[0], self.pickup_pt[1]))
                     
                     self.SQ.enqueue_joint(np.append(self.pickup_pt_joint[0:4], wrap(self.pickup_pt_joint[4]+np.pi, 2*np.pi)), 
-                                            ZERO_QDOT, CLOSED_GRIP, ArmState.SPIN_180.duration)
+                                            ZERO_QDOT, CLOSED_GRIP, ArmState.GOTO_PLACE.duration)
                     
                     self.arm_state = ArmState.RETURN_TRACK 
 
