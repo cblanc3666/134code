@@ -16,6 +16,13 @@ class Track:
         string_1 = f"Pos: {(self.pose.position.x, self.pose.position.y)}, "
         string_2 = f"Angle: {self.pose.orientation.z, self.pose.orientation.w}"
         return string_1
+    
+    def __eq__(self, other): 
+        if not isinstance(other, Track):
+            # don't attempt to compare against unrelated types
+            return NotImplemented
+
+        return self.pose.position.x == other.pose.position.x and self.pose.position.y == other.pose.position.y
 
 class GridNode:
     WALL      = -1      # Not a legal state - just to indicate the wall
@@ -419,7 +426,6 @@ class Planner:
         if self.grid.start_node.x > self.grid.goal_node.x:
             return final_nodes
         return final_nodes[::-1]
-
     
     def get_track_info(self):
         if len(self.final_nodes) == 0:
@@ -431,17 +437,30 @@ class Planner:
         for i in range(len(self.final_nodes) - 1):
             angle_diff = self.final_nodes[i + 1].angle - self.final_nodes[i].angle
             angle = np.arctan2(self.final_nodes[i + 1].y - self.final_nodes[i].y,
-                               self.final_nodes[i + 1].x - self.final_nodes[i].x )
+                            self.final_nodes[i + 1].x - self.final_nodes[i].x )
             if abs(angle_diff) <= 0.001:
                 track_types.append("Straight")
             elif abs(angle_diff + np.pi / 3) < 0.001:
-                track_types.append("Right")
+                if self.grid.start_node.x > self.grid.goal_node.x:
+                    track_types.append("Right")
+                else:
+                    track_types.append("Left")
             elif abs(angle_diff - np.pi / 3) < 0.001:
-                track_types.append("Left")
+                if self.grid.start_node.x > self.grid.goal_node.x:
+                    track_types.append("Left")
+                else:
+                    track_types.append("Right")
             elif abs(angle_diff + 2 * np.pi / 3) < 0.001:
-                track_types.append("Left")
+                if self.grid.start_node.x > self.grid.goal_node.x:
+                    track_types.append("Left")
+                else:
+                    track_types.append("Right")
             else:
-                track_types.append("Right")
+                if self.grid.start_node.x > self.grid.goal_node.x:
+                    track_types.append("Right")
+                else:
+                    track_types.append("Left")
+
             midpts.append(self.final_nodes[i + 1].midpoint(self.final_nodes[i]))
             angles.append(angle)
 
@@ -471,12 +490,21 @@ class Planner:
         for i in range(len(self.track_angles)):
             dx = 0
             dy = 0
-            if self.track_types[i] == "Left":
-                dx += self.D * np.sin(self.track_angles[i])
-                dy += -self.D * np.cos(self.track_angles[i]) 
-            elif self.track_types[i] == "Right":
-                dx += -self.D * np.sin(self.track_angles[i])
-                dy += self.D * np.cos(self.track_angles[i])
+            if self.grid.start_node.x > self.grid.goal_node.x:
+                if self.track_types[i] == "Left":
+                    dx += self.D * np.sin(self.track_angles[i])
+                    dy += -self.D * np.cos(self.track_angles[i]) 
+                elif self.track_types[i] == "Right":
+                    dx += -self.D * np.sin(self.track_angles[i])
+                    dy += self.D * np.cos(self.track_angles[i])
+            else:
+                if self.track_types[i] == "Right":
+                    dx += self.D * np.sin(self.track_angles[i])
+                    dy += -self.D * np.cos(self.track_angles[i]) 
+                elif self.track_types[i] == "Left":
+                    dx += -self.D * np.sin(self.track_angles[i])
+                    dy += self.D * np.cos(self.track_angles[i])
+
             new_location = (self.track_locations[i][0] + dx, self.track_locations[i][1] + dy) 
             posemsg = self.create_posemsg(new_location,
                                         self.track_angles[i], self.track_types[i])

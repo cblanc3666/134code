@@ -18,14 +18,16 @@ RATE = 100
 THRESH = 0.1 #If the x or y coord of a track is at least THRESH away from a track in self.placed_track, ignore track
 T_POS = 0.15 #Filtering coefficient for filtering position
 T_ANGLE = 0.1 #Filtering coefficient for filtering angle
-R = 0.1 #If a track is less than a distance R away from the destination, it will move that track away
+R = 0.18 #If a track is less than a distance R away from the destination, it will move that track away
+ARUCO_OFFSET = 0.08 # Buffer to avoid arucos for track start and end
+RANDOM_SAMPLES = 100 # Amount of random points to try on table for freespace
 
+X_BOUNDS = [-0.762, 0.762]
+Y_BOUNDS = [0, 0.762]
+BASE_BOUND = 0.2
 
 class GameState(Node):
     STATES = {"Straight" : 0.0, "Right" : 1.0, "Left" : -1.0}
-    START_LOC = (0.6, 0.4)
-    GOAL_LOC = (-0.3, 0.3)
-    # GOAL_LOC = (0.1, 0.1)
     DIST_THRESH = 1
     def __init__(self, name):
         # Initialize the node, naming it as specified
@@ -56,6 +58,9 @@ class GameState(Node):
         #When the gripper is hovering over the track it is about to grab
         self.grabbing_track_sub = self.create_subscription(Bool, '/GrabbingTrack', self.grabbing_track, 10)
 
+        #Check whether the track linkage is successful
+        self.connected_track_sub = self.create_subscription(Bool, '/ConnectedTrack', self.connected_track, 10)
+
         self.green_rect = self.create_subscription(
             Polygon, '/GreenRect', self.recvgreenrect, 10)
         
@@ -76,17 +81,8 @@ class GameState(Node):
         self.green_rect_filtered = self.create_publisher(Polygon, "/GreenRectFiltered", 3) 
         self.purple_circ_filtered = self.create_publisher(Point, "/PurpleCircFiltered", 3)
 
-        self.planner = Planner(self.START_LOC, self.GOAL_LOC)
-        self.planned_tracks = self.planner.tracks #Tracks that should be used
-        self.dest_track = self.planned_tracks[0] #Where the next track goes
-
-        #Number of each track needed for the path
-        self.num_blue_tracks = self.planner.num_blue_tracks
-        self.num_pink_tracks = self.planner.num_pink_tracks
-        self.num_orange_tracks = self.planner.num_orange_tracks
-
         self.important_tracks = [] #List of tracks that is in the path
-        self.placed_tracks = [] #List of tracks that have been placed (of type Track)_
+        self.placed_tracks = [] #List of tracks that have been placed (of type Track)
 
         self.timer = self.create_timer(1 / RATE, self.cb_timer)
         self.start_time = self.get_clock().now().nanoseconds * 1e-9
@@ -100,15 +96,23 @@ class GameState(Node):
         self.blue_times = [None, None, None, None]
         self.pink_times = [None, None, None, None]
         self.orange_times = [None, None, None, None]
+        self.blocking_times = [None, None, None, None]
         self.green_rect_time = None
         self.purple_circ_time = None
 
         self.grabbing = False #Check if the gripper has a track in its grasp
         self.blocking_tracks = []
         self.no_blocking_tracks = True
+        self.empty_track_pose = None #Pose message of last track set to the side
+        self.last_added_planned = True #True if the last placed track was part of the planner, False if last placed track was a removal
+        self.track_connection = True
 
         ''' User interfacing global control '''
         self.placing = False # True when currently placing a path
+        self.start_loc = None
+        self.goal_loc = None
+        self.start_aruco_loc = None
+        self.goal_aruco_loc = None
         
     def remove_placed_tracks(self, track_list):
         """
@@ -195,14 +199,14 @@ class GameState(Node):
         #return closest_angle_idx, distances[closest_angle_idx], angles[closest_angle_idx]
     
 
-    def track_filtering(self, tracks, new_tracks, times, add = True):
+    def track_filtering(self, tracks, new_tracks, times, add = True, wait_time = 1.0):
         #Removes the appropriate track from tracks when a track is not visible for a certain time
         if len(new_tracks) < len(tracks):
             if self.grabbing == False:
                 t_now = self.get_clock().now().nanoseconds * 1e-9
                 if times[2] is None:
                     times[2] = t_now
-                elif t_now - times[2] > 10.0:
+                elif t_now - times[2] > wait_time:
                     self.get_logger().info(f"Removing {tracks[0].track_type} track")
                     distances = []
                     for i in range(len(tracks)):
@@ -218,7 +222,7 @@ class GameState(Node):
                 t_now = self.get_clock().now().nanoseconds * 1e-9
                 if times[3] is None:
                     times[3] = t_now
-                elif t_now - times[3] > 10.0:
+                elif t_now - times[3] > wait_time:
                     self.get_logger().info(f"Adding {tracks[0].track_type} track")
                     distances = []
                     for i in range(len(tracks)):
@@ -339,25 +343,83 @@ class GameState(Node):
 
     ''' Runs whenever we see the start and end point '''
     def recvstart_end(self, msg):
+        if self.placing:
+            return # don't want to interfere if already placing
+        
+        if len(self.placed_tracks) > 0:
+            return
+        
         [start, end] = msg.points
-        start.x
-        start.y
-            
+        self.start_loc = np.array([start.x, start.y])
+        self.goal_loc = np.array([end.x, end.y])
+        self.start_aruco_loc = np.copy(self.start_loc)
+        self.goal_aruco_loc = np.copy(self.goal_loc)
 
+        path_vec = self.goal_loc - self.start_loc
+        path_vec /= np.linalg.norm(path_vec)
+
+        self.start_loc = list(self.start_loc + path_vec * ARUCO_OFFSET)
+        self.goal_loc = list(self.goal_loc - path_vec * ARUCO_OFFSET)
+
+
+        # self.get_logger().info(f"Starting planner between {self.start_loc} and {self.goal_loc}")
+
+        # Initialize planner now that we have start and end
+        self.planner = Planner(self.start_loc, self.goal_loc)
+        self.planned_tracks = self.planner.tracks #Tracks that should be used
+        self.dest_track = self.planned_tracks[0] #Where the next track goes
+        self.get_logger().info(f"{[str(track.track_type) for track in self.planned_tracks]}")
+
+        #Number of each track needed for the path
+        self.num_blue_tracks = self.planner.num_blue_tracks
+        self.num_pink_tracks = self.planner.num_pink_tracks
+        self.num_orange_tracks = self.planner.num_orange_tracks
+
+        #Return if track detector cant see all the tracks described in self.important tracks
+        if len(self.blue_tracks) < self.num_blue_tracks:
+            #self.get_logger().info("Not enough blue!")
+            return
+    
+        if len(self.orange_tracks) < self.num_orange_tracks:
+            #self.get_logger().info("Not enough orange!")
+            return
+        
+        if len(self.pink_tracks) < self.num_pink_tracks:
+            #self.get_logger().info("Not enough pink!")
+            return
+
+        # self.get_logger().info("creating important tracks")
+        self.create_important_tracks()
+        self.placing = True # true when we are actively placing tracks
+
+        
 
     def placed_track(self, posemsg):
         if self.no_blocking_tracks:
             track_type = self.dest_track.track_type
-            x = posemsg.poses[0].position.x
-            y = posemsg.poses[0].position.y
-            if track_type == "Straight":
-                self.get_logger().info(f"Placed blue track at {(round(x, 3), round(y, 3))}!")
-            elif track_type == "Right":
-                self.get_logger().info(f"Placed orange track at {(round(x, 3), round(y, 3))}!")
+            if self.track_connection:
+                self.important_tracks.pop(0)
+                self.planned_tracks.pop(0)
+                self.last_added_planned = True
             else:
-                self.get_logger().info(f"Placed pink track at {(round(x, 3), round(y, 3))}!")
-            self.get_logger().info(f"Angle = {2*np.arcsin(posemsg.poses[0].orientation.z * 180 / np.pi)}")
-            #self.get_logger().info(f"{track_type}")
+                self.last_added_planned = False
+        else:
+            track_type = self.blocking_tracks[0].track_type
+            self.blocking_tracks.pop(0)
+            self.last_added_planned = False
+        
+        self.empty_track_pose = None    
+        x = posemsg.poses[0].position.x
+        y = posemsg.poses[0].position.y
+        if track_type == "Straight":
+            self.get_logger().info(f"Placed blue track at {(round(x, 3), round(y, 3))}!")
+        elif track_type == "Right":
+            self.get_logger().info(f"Placed orange track at {(round(x, 3), round(y, 3))}!")
+        else:
+            self.get_logger().info(f"Placed pink track at {(round(x, 3), round(y, 3))}!")
+        self.get_logger().info(f"Angle = {2*np.arcsin(posemsg.poses[0].orientation.z * 180 / np.pi)}")
+        #self.get_logger().info(f"{track_type}")
+        if self.no_blocking_tracks:
             self.placed_tracks.append(Track(posemsg.poses[0], track_type))
             new_start = (posemsg.poses[1].position.x, posemsg.poses[1].position.y)
             self.get_logger().info(f"Purple Circle at {new_start}")
@@ -366,34 +428,34 @@ class GameState(Node):
                 track.pose.position.x += x - self.dest_track.pose.position.x
                 track.pose.position.y += y - self.dest_track.pose.position.y
 
-            if len(self.planned_tracks) != 0:
-                self.dest_track = self.planned_tracks[0]
-        else:
-            if len(self.blocking_tracks) == 0:
-                self.no_blocking_tracks = True
+        if len(self.planned_tracks) != 0:
+            self.dest_track = self.planned_tracks[0]
+
+        if len(self.blocking_tracks) == 0:
+            self.no_blocking_tracks = True
+
         self.grabbing = False
-        self.important_tracks.pop(0)
-        self.planned_tracks.pop(0)
+        
         
     def grabbing_track(self, msg):
         self.grabbing = msg.data
 
+    def connected_track(self, msg):
+        self.track_connection = msg.data
+
     def grabbed_track(self, posemsg):
-        if self.no_blocking_tracks == False:
-            self.blocking_tracks.pop(0)
+        track_type = self.important_tracks[0].track_type
+        x = round(posemsg.position.x, 3)
+        y = round(posemsg.position.y, 3)
+        if track_type == "Straight":
+            self.num_blue_tracks -= 1
+            self.get_logger().info(f"Grabbed blue track at {(x, y)}!")
+        elif track_type == "Right":
+            self.num_orange_tracks -= 1
+            self.get_logger().info(f"Grabbed orange track at {(x, y)}!")
         else:
-            track_type = self.important_tracks[0].track_type
-            x = round(posemsg.position.x, 3)
-            y = round(posemsg.position.y, 3)
-            if track_type == "Straight":
-                self.num_blue_tracks -= 1
-                self.get_logger().info(f"Grabbed blue track at {(x, y)}!")
-            elif track_type == "Right":
-                self.num_orange_tracks -= 1
-                self.get_logger().info(f"Grabbed orange track at {(x, y)}!")
-            else:
-                self.num_pink_tracks -= 1
-                self.get_logger().info(f"Grabbed pink track at {(x, y)}!")
+            self.num_pink_tracks -= 1
+            self.get_logger().info(f"Grabbed pink track at {(x, y)}!")
             
         
     def create_important_tracks(self):
@@ -473,37 +535,100 @@ class GameState(Node):
 
     def find_empty_space(self):
         all_tracks = self.blue_tracks + self.orange_tracks + self.pink_tracks
-        while True:
-            random_track_idx = np.random.randint(0, len(all_tracks))
-            good_track = True
-            for (i, track) in enumerate(all_tracks):
-                if i != random_track_idx:
-                    dist = self.find_distance(track.pose, all_tracks[random_track_idx].pose)
-                    if dist < R:
-                        good_track = False
-            if good_track:
-                break
 
-        used_track = all_tracks[random_track_idx]
-        center = (used_track.pose.position.x + 0.75 * R,
-                  used_track.pose.position.y + 0.75 * R)
-        angle = 2*np.arcsin(used_track.pose.orientation.z)
-        pose_msg = dh.get_rect_pose_msg(center, angle)
+        total_tracks = all_tracks + self.placed_tracks
+
+        for i in range(RANDOM_SAMPLES):
+            x = np.random.uniform(X_BOUNDS[0] + R/2, X_BOUNDS[1] - R/2)
+            y = np.random.uniform(Y_BOUNDS[0] + R/2, Y_BOUNDS[1] - R/2)
+            theta = 0.0
+
+            if (x**2 + y**2 < (BASE_BOUND + R/2) ** 2):
+                continue
+
+            failed = False
+            for track in total_tracks:
+                tx = track.pose.position.x
+                ty = track.pose.position.y
+
+                if (x - tx) ** 2 + (y - ty) ** 2 < R ** 2:
+                    failed = True
+                    break
+            
+            if failed:
+                continue
+
+            if np.linalg.norm(np.array([x, y]) - self.start_aruco_loc) < R:
+                continue
+            
+            if np.linalg.norm(np.array([x, y]) - self.goal_aruco_loc) < R:
+                continue
+
+            pose_msg = dh.get_rect_pose_msg((x, y), theta)
+            # self.get_logger().info(f"Num samples {i + 1}")
+            return pose_msg
+
+        self.get_logger().info("Past 100 samples")
+
+
+        indicies = None
+        furthest_dist = None
+        correct_tracks_list = None
+        for (i, track1) in enumerate(all_tracks):
+            all_tracks_copy = all_tracks.copy()
+            all_tracks_copy.pop(i) #Removes self from all_tracks_copy
+            closest_track_idx, dist , _  = self.find_closest_track(track1, all_tracks_copy)
+            if indicies is None:
+                indicies = (i, closest_track_idx)
+                furthest_dist = dist
+                correct_tracks_list = all_tracks_copy
+            else:
+                if dist > furthest_dist:
+                    indicies = (i, closest_track_idx)
+                    furthest_dist = dist
+                    correct_tracks_list = all_tracks_copy
+
+        ftrack1 = all_tracks[indicies[0]]
+        ftrack2 = correct_tracks_list[indicies[1]]
+
+        midpt_x = 0.5 * (ftrack1.pose.position.x + ftrack2.pose.position.x)
+        midpt_y = 0.5 * (ftrack1.pose.position.y + ftrack2.pose.position.y)
+        avg_angle = 0.5 * (2*np.arcsin(ftrack1.pose.orientation.z) + 2*np.arcsin(ftrack2.pose.orientation.z))
+        center = (midpt_x, midpt_y)
+        pose_msg = dh.get_rect_pose_msg(center, avg_angle)
         
         return pose_msg
         
 
-    def find_blocking_tracks(self, curpose, destpose):
-        if self.grabbing == False:
-            all_tracks = [self.blue_tracks, self.orange_tracks, self.pink_tracks]
-            for track_color in all_tracks:
-                for (i, track) in enumerate(track_color):
-                    dist = self.find_distance(track.pose, destpose)
-                    if dist < R and self.find_distance(track.pose, curpose) > 2 * R:
-                        self.blocking_tracks.append(track_color[i])
-                        self.no_blocking_tracks = False
+    def find_blocking_tracks(self, curtrack, desttrack):
+        blocking_tracks = []
+        all_tracks = self.blue_tracks + self.orange_tracks + self.pink_tracks
+        curpose_track_idx, _, _ = self.find_closest_track(curtrack, all_tracks)
+        all_tracks.pop(curpose_track_idx) #Remove current track from all_tracks
+        def distance_to_track(track):
+            return self.find_distance(desttrack.pose, track.pose)
+        all_tracks.sort(key = distance_to_track)
+        for track in all_tracks:
+            dist = self.find_distance(track.pose, desttrack.pose)
+            if dist < R:
+                blocking_tracks.append(track)
+                self.no_blocking_tracks = False
 
+        return self.remove_placed_tracks(blocking_tracks)
+
+    def update_blocking_tracks(self, curtrack, desttrack):
+        if self.blocking_times[0] is None:
+            self.blocking_times[0] = self.get_clock().now().nanoseconds * 1e-9
+        if self.blocking_times[1] is None:
+            self.blocking_times[1] = self.get_clock().now().nanoseconds * 1e-9
+        track_path = self.find_blocking_tracks(curtrack, desttrack)
+        if len(track_path) > 0:
+            self.track_filtering(self.blocking_tracks, track_path, self.blocking_times, add = False)
+                
     def cb_timer(self):
+        # self.get_logger().info("OPB %r" % [len(self.orange_tracks), len(self.pink_tracks), len(self.blue_tracks)])
+        # self.get_logger().info("Pink tracks %r" % )
+        # self.get_logger().info("Blue tracks %r" % )
         """
         Each track has a pose message with x, y, and world angle.
         posemsg.orientation.x stores the track type as shown in self.STATES
@@ -512,44 +637,29 @@ class GameState(Node):
             - 0.0 : not first track placed
         Publishes a pose array of 2 poses
             Pose 1: Current pose of the track the arm is going to pick up
-            Pose 2: If the track is the starting track, pose is hard coded in self.START_LOC.
+            Pose 2: If the track is the starting track, pose is hard coded in the planner.
                     Else, pose is the center and angle of the last track placed
         """
         # self.get_logger().info("Blue Tracks %r" % len(self.blue_tracks))
         # self.get_logger().info("Orange Tracks %r" % len(self.orange_tracks))
         # self.get_logger().info("Pink Tracks %r" % len(self.pink_tracks))
-        self.get_logger().info(f"grabbing? {self.grabbing}")
-        self.get_logger().info(f"placing?  {self.placing}")
-
-        #Return if track detector cant see all the tracks described in self.important tracks
-        if len(self.blue_tracks) < self.num_blue_tracks:
-            self.get_logger().info("Not enough blue!")
-            return
-    
-        if len(self.orange_tracks) < self.num_orange_tracks:
-            self.get_logger().info("Not enough orange!")
-            return
+        # self.get_logger().info(f"grabbing? {self.grabbing}")
+        # self.get_logger().info(f"placing?  {self.placing}")
+        if self.placing == False:
+            return # don't do anything til we start placing
         
-        if len(self.pink_tracks) < self.num_pink_tracks:
-            self.get_logger().info("Not enough pink!")
-            return
+        # if len(self.placed_tracks) > self.num_blue_tracks + self.num_pink_tracks + self.num_orange_tracks:
+        #     return
 
         #Intialize pose array sent to actuate.py
         final_pose = PoseArray()
 
-        #Intialize self.important_tracks
+        # Check if we are done placing tracks
         if len(self.important_tracks) == 0:
-            if self.placing == True: # we have just fully placed a path
-                self.get_logger().info("back here again")
-                self.placing = False
-                return
-            else:
-                self.get_logger().info("creating important tracks")
-                self.create_important_tracks()
-                self.placing = True # true when we are actively placing tracks
-                test_Tracks = [str(track.track_type) for track in self.important_tracks]
-                #posemsg_cur = self.dest_track.pose #Dummy pose to send to actuate, shouldn't affect anything
-                #self.get_logger().info(f"{test_Tracks}")
+            # we have just fully placed a path
+            self.get_logger().info("back here again")
+            self.placing = False
+            return
         else:
             #Update important tracks after filtering
             self.update_important_tracks()
@@ -562,13 +672,23 @@ class GameState(Node):
         posemsg_cur = self.important_tracks[0].pose
         posemsg_dest = self.dest_track.pose
 
-        #self.find_blocking_tracks(posemsg_cur, posemsg_dest)
+        if self.grabbing == False:
+            if len(self.blocking_tracks) == 0 and self.last_added_planned == True:
+                self.blocking_tracks = self.find_blocking_tracks(self.important_tracks[0], self.dest_track)
+            elif len(self.blocking_tracks) > 0:
+                self.update_blocking_tracks(self.important_tracks[0], self.dest_track)
+
+        #self.get_logger().info(f"{[str(track) for track in self.blocking_tracks]}")
         #self.get_logger().info(f"{self.no_blocking_tracks}")
 
         if len(self.blocking_tracks) != 0:
             posemsg_cur = self.blocking_tracks[0].pose
             posemsg_cur.orientation.y = 1.0
-            posemsg_dest = self.find_empty_space()
+            if self.empty_track_pose is None:
+                posemsg_dest = self.find_empty_space()
+                self.empty_track_pose = posemsg_dest
+            else:
+                posemsg_dest = self.empty_track_pose
             posemsg_dest.orientation.y = 1.0
         else:
             if len(self.placed_tracks) == 0:
@@ -578,11 +698,6 @@ class GameState(Node):
         final_pose.poses.append(posemsg_cur)
         final_pose.poses.append(posemsg_dest)
         self.sent_track_pub.publish(final_pose)
-
-        
-        
-
-
         
 
 def main(args=None):

@@ -28,8 +28,8 @@
                 {'image_width':         640},
                 {'image_height':        480},
                 {'framerate':           15.0},
-                {'brightness':          150},
-                {'contrast':            100},
+                {'brightness':          130},
+                {'contrast':            130},
                 {'saturation':          350},
                 {'sharpness':           200},
                 {'gain':                1},
@@ -37,8 +37,8 @@
                 {'white_balance':       2400},
                 {'autoexposure':        False},
                 {'exposure':            100},
-                {'autofocus':           True},
-                {'focus':               -1}]
+                {'autofocus':           False},
+                {'focus':               1}]
 
     arm_cam_params: [{'camera_name':         'logitech_arm'},
                 {'video_device':        '/dev/video2'},

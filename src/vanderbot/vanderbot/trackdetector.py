@@ -51,12 +51,13 @@ class DetectorNode(Node):
     HSV_PURPLE = np.array([[160, 180], [60, 255], [120, 255]])
     HSV_GREEN_CEIL = np.array([[36, 100], [52, 255], [0, 255]])
     HSV_GREEN_ARM = np.array([[20, 100], [0, 255], [0, 240]])
-    HSV_BLUE = np.array([[87, 107], [170, 220], [175, 255]])
+    HSV_BLUE = np.array([[87, 107], [150, 255], [160, 255]])
 
     # Take center of ArUco relative to world origin. X0, Y0
     CENTER = (0.0, 0.382)
 
-    
+    START_ARUCO_ID = 5 # ArUco marker of start
+    END_ARUCO_ID = 6 # ArUco marker of end
 
     # Initialization.
     def __init__(self, name):
@@ -107,6 +108,9 @@ class DetectorNode(Node):
         self.rect_pose_blue = self.create_publisher(PoseArray, "/StraightTracksBlue", n_images)
         self.purple_circ = self.create_publisher(Point, "/PurpleCirc", n_images)
         self.green_rect = self.create_publisher(Polygon, "/GreenRect", n_images) 
+
+        # Publish data on start and end point
+        self.start_end = self.create_publisher(Polygon, "/StartEndPoint", n_images)
 
     # Get camera info by subscribing to camera info topic
     def get_camera_info(self):
@@ -185,20 +189,17 @@ class DetectorNode(Node):
             # self.get_logger().info(f"{markerIds.flatten()}")
 
             # Abort if not all corner markers are detected.
-            # if (markerIds is None or 
-            #     not set([1,2,3,4]).issubset(set(markerIds.flatten()))): TODO this is the new code we want
-            if (markerIds is None or
-                len(markerIds) != 4 or 
-                set([1,2,3,4]) != set(markerIds.flatten())):
+            if (markerIds is None or 
+                not set([1,2,3,4]).issubset(set(markerIds.flatten()))): 
                 # self.get_logger().info("Cannot see Aruco")
                 return None
-
 
             # Determine the center of the marker pixel coordinates.
             uvMarkers = np.zeros((4,2), dtype='float32')
             
-            for i in range(4): # TODO right now this will take the first four markers it sees but that is not necessarily markers 1-4
-                uvMarkers[markerIds[i]-1,:] = np.mean(markerCorners[i], axis=1)
+            for i in range(len(markerIds)): 
+                if markerIds[i] < 5: # only care about corner ArUco
+                    uvMarkers[markerIds[i]-1,:] = np.mean(markerCorners[i], axis=1)
 
             uvMarkersUndistorted = cv2.undistortPoints(uvMarkers, K, D) 
 
@@ -222,7 +223,7 @@ class DetectorNode(Node):
             if annotateImage:
                 #.circle(image, (u, v), 5, (0, 0, 0), -1)
                 if angle is not None:
-                    s = "(%7.4f, %7.4f, %7.4f)" % (xyObj[0], xyObj[1], angle)
+                    s = "(%7.4f, %7.4f)" % (xyObj[0], xyObj[1])
                     cv2.putText(image, s, (int(u), int(v)), cv2.FONT_HERSHEY_SIMPLEX,
                                 0.5, (255, 0, 0), 2, cv2.LINE_AA)
                     #self.get_logger().info(f"Pt: ({world_pt1Obj[0]}, {world_pt1Obj[1]}), Center:({xyObj[0]}, {xyObj[1]})")
@@ -298,6 +299,37 @@ class DetectorNode(Node):
         markerCorners, markerIds, _ = cv2.aruco.detectMarkers(
                 frame, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50))
 
+        if (markerIds is not None and 
+            self.START_ARUCO_ID in markerIds and 
+            self.END_ARUCO_ID in markerIds):
+            for i in range(len(markerIds.flatten())):
+                if markerIds[i] == self.START_ARUCO_ID:
+                    (u_start, v_start) = np.mean(markerCorners[i], axis=1)[0]
+                elif markerIds[i] == self.END_ARUCO_ID:
+                    (u_end,   v_end)   = np.mean(markerCorners[i], axis=1)[0]
+
+            startxy = self.pixelToWorld(frame, u_start, v_start, 
+                                        self.CENTER[0], self.CENTER[1], 
+                                        markerCorners, markerIds, 
+                                        self.ceil_camK, self.ceil_camD)
+            endxy   = self.pixelToWorld(frame, u_end, v_end, 
+                                        self.CENTER[0], self.CENTER[1], 
+                                        markerCorners, markerIds, 
+                                        self.ceil_camK, self.ceil_camD)
+            
+            # don't publish if we can't see corner arucos (pixeltoworld gave None)
+            if startxy is not None and endxy is not None:
+                start_end_msg = Polygon()
+                p = Point32()
+                p.x = float(startxy[0])
+                p.y = float(startxy[1])
+                start_end_msg.points.append(p)
+                p = Point32()
+                p.x = float(endxy[0])
+                p.y = float(endxy[1])
+                start_end_msg.points.append(p)
+
+                self.start_end.publish(start_end_msg)
 
         orange_poses = PoseArray()
         if len(orange_rectangles) != 0:
